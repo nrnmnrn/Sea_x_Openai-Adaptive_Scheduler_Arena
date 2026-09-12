@@ -1,4 +1,35 @@
-# 實作交接包（候選版）
+# Adaptive Scheduler Arena：SP-01 Scheduling Arena
+
+本 repository 目前只實作 `sub-PRDs/scheduling-arena.md`。Agent adaptation、Candidate、Evaluator 與 Skill promotion 等其他 sub-PRD 功能等待隊友完成後再整合。
+
+## 比賽環境與啟動
+
+比賽時使用 Anaconda `scheduler-ui` 環境：
+
+```powershell
+conda activate scheduler-ui
+python app.py --backend local
+python app.py --backend local --mode developer
+```
+
+team backend 到位後，使用指定 factory：
+
+```powershell
+python app.py --backend team --factory team_backend:create_backend
+```
+
+team factory 載入失敗會明確報錯，不會自動切換到 local。頁面會持續顯示資料來源與 `MOCK 示範` 標籤。
+
+## 驗證
+
+```powershell
+conda activate scheduler-ui
+pytest -q --backend local
+ruff check .
+ruff format --check .
+```
+
+以下內容是交接包原文，保留作為規格與流程參考。
 
 `build-handoff_final/` 是準備帶入未來比賽實作 repository 的單一文件包。它目前等待獨立驗收；通過前是候選交接包，不宣稱已取代其他交接包。驗收通過後，複製整個資料夾到實作 repository 使用；閱讀與執行不應需要規劃 repository 的其他檔案。
 
