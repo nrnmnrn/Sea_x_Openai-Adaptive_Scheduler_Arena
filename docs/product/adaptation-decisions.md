@@ -1,25 +1,25 @@
 # Adaptation 待決事項與受影響工作
 
-本文件記錄尚缺的人類決策，不是新的產品規則。原始[調查報告](sub-prd-contract-review.md)仍是未核准建議；流程改採真實切片不等於核准其 schema、責任或產品選项。各項目前均為 **待決**；未提供核可者、日期與正式權威修改前，不能標為解除。
+2026-09-12 本次對話中，使用者已採納下表 D1～D9 的產品選擇與公開契約方向，並同步至 PRD 與 contracts。這不等於各 Provider seam 已實作、驗證或可正式整合；SP-01 interface confirmation/integrator 角色由同一位使用者兼任，但仍須以真實版本與證據完成各交付凍結。
 
 原型依 [workflow](../../workflow.md) 與[工作分類](prototype-work-plan.md)開發；下表阻擋的是依賴答案的部分及相應正式交付，不是阻擋整組 A／B 工作。用[接口討論表](interface-discussion-board.md)收集問題、參與者與證據，不能把建議當結論。
 
 ## 決策清單
 
-| ID | 精確缺口／建議選項 | 理由與影響 | 阻擋交付／工作 | 核可與落點 |
+| ID | 已採納選擇 | 影響 | 受影響交付／工作 | 尚待完成的 Provider／seam 證據 |
 | --- | --- | --- | --- | --- |
-| D1 | trigger 指標、門檻、觀測 window 長度／形成方式未定。選固定核准設定，或另定可設定規則；數值由人類決定。 | 不同設定會改變何時暫停及展示是否觸發。 | H2、S02-A；真實 trigger 驗證。 | main 負責人決定，寫 PRD、backend 契約。 |
-| D2 | baseline Policy、workload、seed、完整非零 checkpoint、evaluation window 未定。可採明確參考基準；若改採目前 Policy 作基準，需解決嚴格改善 gate 令「目前 Policy 通過」不可達的矛盾。 | 不指定 FIFO 或其他預設；比較基準影響改善宣稱。factory 的 t=0 初始化不等於非零狀態重放。 | H3、H4、H5；S02-A/B、S03-A/B、後续 promotion 真實結果。 | 產品決策寫 PRD；重放介面需 SP-01 確認並寫契約。 |
-| D3 | P95 null 與 null／數值如何比較；完整負結果、policy runtime／契約違反與外部 timeout／缺結果的分類未定。可定明確不可比較結果，或核准另一比較規則。 | 不能默認 null=0／通過；不能把評估未完成當作全部失敗。 | H3～H5；全敗、gate 與候選建立驗證。 | main 負責人決定，寫 PRD／契約與案例。 |
-| D4 | SP-02 需要共用 gate，但 SP-03 寫實作 gate；sandbox、activation、register、controller seam 的底層與流程責任未完整分開。建議共用評估由 SP-02 先交付、SP-03 重用；或由其他明確 Provider 交付。 | 建議未核准。若仍由 SP-03 提供，須設計不依賴 SP-02 全敗結果的先行交付，重新核可依賴，避免循環等待。不能把新增能力直接塞給 SP-01。 | H2、H3、H5～H8；所有涉跨功能操作切片。 | 受影響 Owner（尤其 SP-01）確認，main 核可 PRD 責任／子 PRD／契約。 |
-| D5 | Planner／Evaluator／Critic 輸入輸出、同步／非同步、timeout 所有權、取消、stage checkpoint 與版本 retry 未定。可重試未完成外部 stage，但不得自行把五版已失敗重設為新預算。 | 現有禁止自動 retry、沿用 adaptation ID 與禁止重做成功副作用不變；五版後可做何種手動操作需決定。 | H5、H7；S02-A 評估恢復、S02-B 控制恢復、S02-C 恢復 UI、S03 全部及 S04-C。 | main 核可契約；改五版／retry 行為需改 PRD。 |
-| D6 | 子 PRD 要求整份 Live Snapshot before/after 不變，卻同時要求 adaptation stage/events 更新。可明確區分 scheduler 狀態不變與允許的控制證據變化；不可直接刪測試。另 SP-01 fixture A 的已通過 Hybrid 前提需真實來源或另行核准驗證分層。 | Snapshot 不變範圍與 Hybrid 驗收調整都需人類決定；本次保留 SP-01 原驗收，不能宣稱此缺口已解。 | H1、H3、H8；S02/S03 隔離驗證；SP-01 Hybrid 驗收證據確認。 | SP-01 負責人確認，main 核可契約／子 PRD／ACCEPTANCE。 |
-| D7 | adaptation 暫停期間 inject／generate 是否拒絕，或允許但使評估失效重算，未定。 | 影響狀態一致性與使用者操作；不能擅自排隊、拒絕或重啟。 | H2、H3、H7；暫停時 workload 操作與恢復聯測。 | main 產品決策、SP-01 確認；PRD／backend。 |
-| D8 | 「每個修改回傳 Snapshot」與 register 回 Skill 等逐方法回傳矛盾；playing 在 UI envelope 與 Snapshot 文句不一致。可保留逐方法結果並定義序列化讀 Snapshot，或核准統一 envelope。 | 不自行改公開回傳；需逐項定義部分成功後讀取失敗與安全恢復。 | H1、H2、H6～H8；修改操作整合。 | SP-01 確認，main 核可 backend／新操作契約。 |
-| D9 | 完整比較、Candidate、feedback、promotion 的查詢／UI 插入介面及與 Snapshot 同版本關聯未定。可採 controller 同版本 evidence，或擴充 Snapshot；promotion 不可變資料與 accepted-result 查詢 schema 也待核准。 | 不增加 Skill metadata；不得僅憑 passed 布林登錄未知 code／版本。 | H4、H6、H8；S02-C、S03-A/B、S04-A/B。 | SP-01 UI／資料邊界確認，main 核可契約及相關子 PRD。 |
+| D1 | 五秒非重疊 `(t-5,t]` window；新增 `expired >= 1` trigger。 | 跨界逐邊界檢查並立即 pause。 | H2、S02-A。 | SP-01 control seam、fixture 驗證。 |
+| D2 | FIFO baseline；同一非零 checkpoint、seed、workload/window；只評 checkpoint 非終態集合。 | 空集合不啟 Planner。 | H3～H5、S02/S03。 | SP-01 clone seam、SP-02 evaluator Provider。 |
+| D3 | P95 不可比較、policy error、契約違反為完整負結果；baseline failure、infra/未知 timeout、缺失或 identity 不符為 incomplete/error。 | incomplete/error 不得 all-failed。 | H3～H5。 | 真實 gate 案例。 |
+| D4 | SP-02 提供共用 evaluator/all-failed comparison；SP-03 reuse gate/accepted Candidate；SP-04 promotion。 | 不將 controller/checkpoint/storage/UI 自動歸 SP-01。 | H2～H8。 | Owner 接受與 SP-01 seam 證據。 |
+| D5 | Planner/Critic 60 秒、Evaluator 10 秒；取消失效、遲回丟棄；只 retry 未完成 stage，副作用先 query。 | 五版失敗只 resync/reset。 | H5、H7。 | 真實 adapter/recovery 測試。 |
+| D6 | evaluation 不改 scheduler state；Live Snapshot 僅 adaptation/evidence、對應 event、version/revision 可變；Hybrid 要真實 gate→register。 | 保留隔離與 fixture gate。 | H1、H3、H8。 | SP-01 evidence/fixture seam。 |
+| D7 | active adaptation 拒絕 advance/inject/generate/developer set_policy；reset 作廢舊結果。 | 保護 checkpoint 一致性。 | H2、H3、H7。 | SP-01 control seam、聯測。 |
+| D8 | mutation 保持既定回傳；controller 後續讀 accepted Snapshot；playing 屬 UI envelope。 | 防止回傳矛盾與重送。 | H1、H2、H6～H8。 | SP-01 controller/read seam。 |
+| D9 | accepted Candidate 以 run/adaptation/candidate/version 精確 query；evidence 與 accepted Snapshot 同版本。 | 不憑 bool promotion、不加 Skill metadata。 | H4、H6、H8。 | storage/UI seam、Provider 版本與整合證據。 |
 
 ## 解除方式
 
 每項決策記錄：選擇、理由、核可者／日期／證據、受影響 Owner 確認、權威文件章節與版本、驗證案例、解除的交付／Ticket。更新相關正式規格後再重驗開工條件；只回覆「同意流程」或只關閉工作單都不能解除。
 
-已核准的是 [ADR 0003](../adr/0003-real-slice-delivery.md) 的正式交付方式與 [ADR 0004](../adr/0004-prototype-parallel-development.md) 的原型開工／試接流程。各子 PRD 的本次版本仍待獨立審查／人類內容核可，SP-01 執行連結需由現有負責人提供，不由本文件捏造。
+已核准的是 [ADR 0003](../adr/0003-real-slice-delivery.md) 的正式交付方式、[ADR 0004](../adr/0004-prototype-parallel-development.md) 的原型開工／試接流程，以及本表 2026-09-12 採納的產品／契約選擇。各子 PRD 的完整交付仍待獨立驗收；使用者兼任 SP-01 interface confirmation/integrator，不取代真實 seam、版本與 main 證據。

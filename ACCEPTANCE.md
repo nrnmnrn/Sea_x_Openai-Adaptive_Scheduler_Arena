@@ -16,9 +16,9 @@
 
 SP-01 保留整份 PR；SP-02～04 每切片依 [workflow](workflow.md) 記錄上游交付 ID、契約版本、真實輸入、commit／PR、人類授權、main 版本與驗證結果。切片通過只涵蓋對應範圍，不能把下面整列或整份子 PRD 標為完成。
 
-交接逐項核對 [H1～H8](docs/contracts/adaptation-contract.md)，未決事項核對 [D1～D9](docs/product/adaptation-decisions.md)。R07～R18 所需全敗、passed、錯誤恢復與 UI 必須來自真實能力；固定 Jobs／邊界資料保留，但替身結果不構成正式整合。R02 Hybrid gate 來源與 R11 Snapshot 不變範圍仍待 D6，不刪除原要求或擅自縮小驗收。
+交接逐項核對 [H1～H8](docs/contracts/adaptation-contract.md)。2026-09-12 使用者已採納四組方案，但 R07～R18 所需全敗、passed、錯誤恢復與 UI 仍必須來自真實能力；固定 Jobs／邊界資料保留，但替身結果不構成正式整合。R02 Hybrid gate/register 前置與 R11 Snapshot 不變範圍仍待真實 SP-01 seam 證據，不刪除原要求或擅自縮小驗收。
 
-責任調整待 D4 核准才更新下表負責子 PRD；尤其既有評估錯誤、共同 gate 與底層恢復不能因目前列在另一功能便被省略。受影響列在決策及實際驗證完成前維持待驗收。
+已採納的 D4 責任為 SP-02 共用評估、SP-03 Candidate loop、SP-04 promotion；既有評估錯誤、共同 gate 與底層恢復不能因目前列在另一功能便被省略。受影響列在真實 Provider seam 與實際驗證完成前維持待驗收。
 
 | ID | 總 PRD需求 | 負責子 PRD | 驗收證據 | 結果／日期／驗收者 |
 | --- | --- | --- | --- | --- |
@@ -28,11 +28,11 @@ SP-01 保留整份 PR；SP-02～04 每切片依 [workflow](workflow.md) 記錄�
 | R04 | 三個 tabs、Arena 控制、動畫、Metrics & Code、初始 Skill Library 同一 Snapshot 且可讀。 | SP-01 | controller／revision／單一更新來源測試；初始控制狀態、捲動保留、1440×900、1280×720 瀏覽器證據。 | 待填 |
 | R05 | Demo mode 只允許播放、暫停、單步、reset、倍速與 workload；Developer mode 才可手動套用已驗證 Skill。 | SP-01 | 兩種 mode 的控制可見性與操作測試。 | 待填 |
 | R06 | provider-neutral 的 team backend 與外部 Agent adapter 可用，或明確標示為 local／Mock；team 載入失敗不 fallback。 | SP-01、SP-03 | Python／uv 環境、契約指定 CLI、`--backend team --factory`、外部 adapter、Mock 標示與失敗 factory 的啟動／整合證據。 | 待填 |
-| R07 | trigger 未成立不 adaptation；指標惡化成立後立即暫停 simulation clock，以相同 baseline 評估所有已驗證 Skills；同 run／window 重複 trigger 沿用同一 `adaptation_id`。 | SP-01、SP-02 | 模擬時間與 Job 凍結、重複 trigger、相同 workload／seed／state／window、sandbox fixture 測試。 | 待填 |
+| R07 | trigger 未成立不 adaptation；指標惡化成立後立即暫停 simulation clock，以相同 baseline 評估所有已驗證 Skills；同 run／window 重複 trigger 沿用同一 `adaptation_id`。 | SP-01、SP-02 | 採納的五秒非重疊 window／新增 expiry trigger、FIFO baseline、checkpoint 非終態集合、兩 session 與重複 trigger；以真實 controller、checkpoint、sandbox seam 證明模擬時間與 Job 凍結。 | 待填 |
 | R08 | AI 自動完成既有 Skill 比較；目前 Policy 通過時只記重用並恢復，不重建 activation；其他 Skill 通過時依固定順序啟用並恢復；兩者皆不建立 Candidate。 | SP-02 | 目前 Policy 無新 segment／activation、多 Skill tie-break、無人工調參、無 Planner／Candidate、running Job、resume 與 next-dispatch 測試。 | 待填 |
 | R09 | UI 顯示 degradation、既有 Skill 比較、選擇原因與 `existing_skill_reused`；只有切換至不同 Skill 才另有 `policy_activated`。 | SP-02 | 同一 Snapshot 的條件式 event、metrics、瀏覽器證據。 | 待填 |
 | R10 | Candidate 只在全部既有 Skills 失敗後由 AI 自動建立與迭代；ID／父版本／原因／code／workload／feedback 可追溯。 | SP-03 | all-failed gate、無人工調參、Candidate lineage 與 UI 證據。 | 待填 |
-| R11 | Candidate sandbox 評估與 evaluator gate 正確；sandbox 不修改 Live Run。 | SP-03 | baseline／Candidate metrics、契約檢查、Live Snapshot before/after 測試。 | 待填 |
+| R11 | Candidate sandbox 評估與 evaluator gate 正確；sandbox 不修改 Live Run。 | SP-03 | baseline／Candidate metrics、契約檢查、Live Snapshot 排程投影 before/after 測試；真實 checkpoint clone、隔離 runner 與已採納的 null／incomplete 分類證據。 | 待填 |
 | R12 | Critic feedback 最多推動五版；拒絕、契約錯誤、第五版失敗皆維持 Live Policy 與暫停狀態。 | SP-03 | 版本上限、failure reason、`adaptation_failed`、simulation clock 不前進測試與畫面。 | 待填 |
 | R13 | 外部 Planner／Evaluator／Critic／LLM 錯誤停止 loop、保持暫停、保留最後有效 Snapshot、記錄並顯示錯誤；只提供安全的手動 retry，且不自動轉 Mock。 | SP-03 | timeout／schema／服務錯誤、`adaptation_error`、retry／resync／reset 與 UI 證據。 | 待填 |
 | R14 | 僅 gate-passed Candidate 可註冊為 verified Skill，並在 Skill Library 顯示來源與使用記錄。 | SP-04 | passed／rejected input、register、Library Snapshot／瀏覽器測試。 | 待填 |
@@ -48,7 +48,7 @@ SP-01 保留整份 PR；SP-02～04 每切片依 [workflow](workflow.md) 記錄�
 | ID | 條件 | 證據 | 結果／日期／驗收者 |
 | --- | --- | --- | --- |
 | C01 | 每個子 PRD 已依流程完成完整功能驗收、測試、AI review、Owner 自查、另一位成員確認、正式 PR merge 與 `main` 整合驗收。 | 四份子 PRD 的 closeout 連結與 `main` 驗收結果。 | 待填 |
-| C02 | `DEPENDENCIES.md` 與每份子 PRD 的直接交付依賴一致；所有 Contract／Integration 邊完成真正整合。 | S01-FULL／各切片的上游交付、H1～H8 契約版本、PR／main 證據逐邊核對；D1～D9 影響項均已核准並驗證。 | 待填 |
+| C02 | `DEPENDENCIES.md` 與每份子 PRD 的直接交付依賴一致；所有 Contract／Integration 邊完成真正整合。 | S01-FULL／各切片的上游交付、H1～H8 契約版本、PR／main 證據逐邊核對；D1～D9 已採納規則均以真實 seam 驗證。 | 待填 |
 | C03 | team mode 的所有必要測試、lint、format check 與瀏覽器驗收通過；local 證據未被混作 team 證據。 | 命令輸出與來源標示。 | 待填 |
 | C04 | 已核定的 trigger pause／去重、dispatch attribution、最小 Skill metadata、錯誤 event／手動 retry 及短／長展示行為均已寫入產品權威並完成驗收。 | 決定紀錄及 R07、R08、R12、R13、R15、R16、R17、R19 證據。 | 待填 |
 | C05 | 交接包可由獨立 implementation repository 讀取並執行，不需要 planning repository、會議紀錄、AO 草案或預先建立 Ticket。 | 獨立讀取／rehearsal 證據。 | 待填 |

@@ -5,7 +5,7 @@
 > 使用者已確認 SP-01 正在由組員完整開發；本次不改其功能責任、既有 Ticket 或驗收。下列原始認領／核可欄位尚未同步，請現有負責人在 parent issue 補上實際連結與規格版本；不得將空白欄位視為已核可證據，也不要求重新認領。
 
 - 狀態：`Unclaimed`
-- 核可狀態：待人類核可；未核可前不可開始實作
+- 核可狀態：既有完整交付持續進行；2026-09-12 已採納的 I04／I09 只影響對應 seam 驗證，不改變 SP-01 範圍或宣稱整份驗收完成
 - 版本：`0.1-draft`
 - Owner：待比賽當日認領
 - GitHub parent issue：待比賽當日認領後建立
@@ -46,7 +46,11 @@
 
 本子 PRD提供[後端契約](../docs/contracts/backend-contract.md)所定義的 SchedulerBackendAdapter、Snapshot、Job、Skill、Event、metrics、segments、pause／resume seam 與 UI shell。交付 ID 為 **S01-FULL**：保留原單一 branch／PR，整份完成、merge 並在 main 驗證後才供 SP-02～04 正式整合；不承諾提前切片。下游可依[原型工作分類](../docs/product/prototype-work-plan.md)先開發，取得必要同意後依 workflow 使用本組可辨識的真實開發版試接；這不是 S01-FULL、不要求提前切片或修改原安排，不以測試替身作證據。
 
-交接位置與驗證索引見 [H1、H2、H3、H7、H8](../docs/contracts/adaptation-contract.md)。其中待決的 sandbox、操作回傳、UI evidence 與恢復邊界不是對 SP-01 的新增承諾；涉及本子 PRD 實質變更，須由現有負責人確認並經人類核可。D6 所列 Hybrid 真實驗收來源缺口仍需確認，本次保留以下原驗收，不宣稱問題已解除。
+交接位置與驗證索引見 [H1、H2、H3、H7、H8](../docs/contracts/adaptation-contract.md)。採納的 sandbox、操作回傳、UI evidence 與恢復規則不自動增加 SP-01 責任；涉及本子 PRD 實質變更仍須由現有負責人在真實版本確認。Hybrid 真實驗收來源仍待 seam 證據，本次保留以下原驗收，不宣稱問題已解除。
+
+### 已採納介面影響（I04、I09；不改變 SP-01 完整交付）
+
+2026-09-12 使用者已採納兩項受影響方案：下游需以最小可追溯 checkpoint／controller seam 取得隔離評估所需的非零狀態，且 Hybrid fixture 只能在真實 Candidate gate→register 前置證據存在時使用。本節不指定新公開方法、schema 或實作責任，也不要求 SP-01 提前切片；現有 Owner／本次對話使用者仍須在真實版本上確認 seam、版本與驗收證據。未確認前，只停止 checkpoint clone、sandbox 接線與 Hybrid fixture 的相應驗收，不阻擋 SP-01 其餘完整交付。
 
 ## 必要行為
 

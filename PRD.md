@@ -47,7 +47,9 @@
 
 ## 自動 adaptation
 
-指標惡化並形成有效 trigger 時，系統立即暫停 simulation clock；模擬時間、Job 進度、arrival、deadline 與 dispatch 均不前進，但 AI adaptation 依 wall-clock time 在背景自動執行，不需使用者調參或接受 Candidate。同一 run、同一 workload window 只允許一個 active `adaptation_id`；重複 trigger 沿用現有進度，不排隊、不建立另一輪。
+每個 observation window 為已完成且不重疊的五個模擬秒 `(t-5,t]`，自 `t=5` 起計。只有本 window 新增至少一筆 `expired` Job 才形成有效 trigger；零筆不 trigger，歷史 expiry 不重複計算。跨越多個邊界的 `advance` 逐邊界檢查，遇有效 trigger 即停在該邊界，不再於同次推進更晚時間。
+
+有效 trigger 時，controller 在同一序列化控制區段暫停並捕捉 evaluation checkpoint；simulation clock、Job 進度、arrival、deadline 與 dispatch 均不前進，但 AI adaptation 依 wall-clock time 在背景自動執行，不需使用者調參或接受 Candidate。同一 run、同一 workload window 只允許一個 active `adaptation_id`；重複 trigger 沿用現有進度，不排隊、不建立另一輪。active adaptation 期間拒絕 `advance`、`inject`、`generate` 及 developer `set_policy`；reset 作廢舊 run 的未完成結果。只有成功重用或成功啟用才恢復 simulation clock。
 
 固定流程如下：
 
@@ -65,11 +67,13 @@ workload 改變 → trigger → 暫停 simulation clock → 評估既有 Skills
 
 Candidate 只能在所有既有 Skills 失敗、失敗原因已保留且尚未達五版時建立。每版使用唯一 ID，並保留 `candidate_id`、父版本、產生原因、policy code、適用 workload、evaluator 結果與 Critic feedback。執行錯誤、契約違反或 metrics 未改善都回饋 Planner。五版均失敗時維持原 Policy、保持 simulation clock 暫停、記錄失敗結果，不建立 Skill。
 
+每輪 evaluation 固定使用 FIFO reference baseline、同一 checkpoint、seed、workload 與 evaluation window。evaluation 從 paused checkpoint 的 `now` 跑至該 checkpoint 已知非終態 Jobs 的最大 deadline，不 inject/generate；評分只計 checkpoint 當時非終態集合（包括 `running`、`scheduled`），歷史終態不混入分數。沒有可評分 remaining Job 時為不可評估，不啟 Planner。P95 為 null 的完整執行是不可比較的負結果，不能通過；policy 程式例外或契約違反亦為完整負結果。baseline evaluator failure、基礎設施錯誤、無法判明的 timeout、缺失或未知結果是 incomplete/error，不能構成 all-skills-failed。
+
 Evaluator 對既有 Skill 與 Candidate 使用同一 gate：expired count 必須下降；或 expired 相同時 completed count 增加且 P95 不惡化；completed 不得下降；P95 不得惡化；並須通過 Job、deadline、單 worker、不搶占、event 順序、sandbox 執行、有效 Snapshot 與可序列化 metrics 檢查。結果必須保留 baseline、受測結果、退化項目、gate、失敗原因與 Critic feedback。
 
 Candidate 通過後才可註冊。啟用建立 `policy_activated` event 與新的 policy segment，保留 running Job，不重新 dispatch；成功重用或啟用後自動恢復 simulation clock。Job 在 dispatch 時記錄適用 Policy 與 segment。
 
-五版失敗或外部錯誤時不得自動恢復 simulation clock。使用者可從可證明安全的 checkpoint 手動 retry；狀態不明時只可 resync 或 reset。不得靜默 retry 或切換 Mock。
+Planner 與 Critic timeout 為 60 wall-clock 秒，Evaluator timeout 為 10 wall-clock 秒。取消使本地 request 失效；遲到回應必須丟棄，不自動 retry。未完成的 Planner／Evaluator／Critic stage 可對同一 adaptation 安全手動 retry；register 或 activate 已完成時先查詢再繼續，不重做副作用。五版失敗後不得取得新版本預算，也不得 retry 該 loop，只可 resync 或 reset。外部錯誤時不得自動恢復 simulation clock；只有尚未完成且可證明安全的 stage 可手動 retry，狀態不明時只可 resync 或 reset。不得靜默 retry 或切換 Mock。
 
 ## Metrics、Snapshot 與 Adapter
 
