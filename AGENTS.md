@@ -16,6 +16,7 @@
 
 - 開始工作前，先理解使用者的目標、範圍、限制與完成標準；再檢查並選用與任務直接相關的 skill。依所選 skill 決定須讀取的文件、執行步驟與驗證方式。僅使用必要 skill，不得以 skill 取代或擴張使用者需求；若無合適 skill，依本文件及 repository 既有模式執行。
 - 目前 branch 非 `main`，或本次已認領／承接任何子 PRD 或 Ticket 時，開始前必須完整讀 [workflow.md](workflow.md)。僅管理 `main` 且未承接子 PRD／Ticket 者不強制。
+- 承接 SP-02～04 時，先從被指派子 PRD 的 parent issue 確認 Owner、整體狀態與工作索引，再進入被指派且已核可的 active Ticket 實作。parent issue 不直接授權整份實作；實際範圍、branch／PR、未決事項與驗證證據記在 active Ticket，不得自行挑選或開始尚未建立、未被指派或未核可的下一張 Ticket。
 - 每次只主動處理一張已準備好的 Ticket；開始前讀完整子 PRD、Ticket、[workflow.md](workflow.md)、[依賴索引](sub-PRDs/DEPENDENCIES.md)、必要交付證據與最新 `main`。受阻後切換須先依 workflow 留下可恢復交接，原工作保持 Open。
 - 依賴方向固定為「Consumer depends on Provider」。原型工作先讀[工作分類](docs/product/prototype-work-plan.md)與[接口討論表](docs/product/interface-discussion-board.md)，依 workflow 區分 A 獨立、B 邊做邊談、C 受影響部分先決定；開發版試接不等於正式交付，不以替身證明接通。
 - SP-01 維持完整交付，不要求提前切片；任何涉及其責任、介面或驗收的實質變更，先取得該負責人確認及人類核可。

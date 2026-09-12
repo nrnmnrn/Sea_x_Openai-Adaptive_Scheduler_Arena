@@ -5,6 +5,7 @@
 ## 1. 交付模式與認領
 
 - 每份子 PRD 保留唯一 Owner 與 parent issue，負責完整功能。認領、核可者、日期、規格版本與連結須據實記錄，不由 AI 補造。
+- **承接入口**：SP-02～04 的執行者先到被指派子 PRD 的 parent issue 確認 Owner、整體狀態與 Ticket 索引，再進入被指派且已核可的 active Ticket。parent issue 用於整體追蹤，不直接授權整份實作；active Ticket 才記錄本次實際範圍、branch／PR、待決事項與驗證證據。不得自行挑選或開始尚未建立、未被指派或未核可的下一張 Ticket。
 - **SP-01 保留完整交付模式**：已在執行，沿用既有單一 branch／Draft PR、Ticket 結構與整份合併流程，不要求提前交付切片。使用者確認正在開發，不代表缺少的核可或執行連結可視為已有證據。
 - **SP-02～04 採真實切片模式**：每張核可 Ticket 交付可獨立驗證的真實功能切片，由最新 `main` 建立自己的短期 branch／Draft PR；一條切片 branch 只對應一張 Ticket。parent issue 索引全部 branch／PR。詳見 [ADR 0003](docs/adr/0003-real-slice-delivery.md)。
 - Owner 依核可子 PRD 草擬 Ticket（可用 `$to-tickets`），遵循 [模板](templates/ticket.md)。2–3 張為標準；4–5 張須 main branch 負責人特別核可；超過 5 張先拆分或縮減子 PRD。切片分支不能繞過數量閘門。
@@ -42,7 +43,7 @@ SP-01 對下游的正式交付只有「整份完成、merge 並在 `main` 驗證
 
 ## 3. 執行與切片合併
 
-1. 讀完整子 PRD、Ticket、parent issue、本流程、最新 `main` 與直接交付證據；核對契約版本、未決事項及既有變動。frontier 是開始條件已滿足的工作，不由 Ticket 編號決定。
+1. 由被指派的 parent issue 進入被指派且已核可的 active Ticket；讀完整子 PRD、Ticket、parent issue、本流程、最新 `main` 與直接交付證據，核對契約版本、未決事項及既有變動。frontier 是開始條件已滿足的工作，不由 Ticket 編號或執行者自行選擇決定。
 2. 一次只主動實作一張 Ticket，同一檔案集只有一位寫入者。滿足第 2 節才執行 `$implement`；prototype 依第 2.1 節可做有界內部工作，尚無真實依賴的驗證標為待整合，不宣告完成。
 3. 完成 Ticket 驗收、相關檢查、完整 repository 測試套件與 AI `/code-review`，處理必要發現。程式變更依 AGENTS 執行 lint／format 與適用型別檢查；純文件變更只做文件檢查及 `git diff --check`，不執行程式測試。AI review 不取代人類核可。
 4. 經允許建立可辨識 Ticket commit。**SP-02～04**：另一位成員確認切片與真實依賴證據，main branch 負責人審查契約相容性、範圍及整合條件；取得人類授權後 merge，再在 `main` 驗證切片。切片須不破壞既有功能，不將尚未完成路徑暴露為正式可用功能。

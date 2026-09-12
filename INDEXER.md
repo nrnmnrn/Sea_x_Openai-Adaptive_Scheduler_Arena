@@ -1,6 +1,6 @@
 # 交接包索引
 
-每次先讀 [AGENTS.md](AGENTS.md) 與本檔，再依情境讀下表。`parent issue` 指一份子 PRD 的 GitHub 上層工作單；Ticket 是它底下可獨立驗證的一次工作。
+每次先讀 [AGENTS.md](AGENTS.md) 與本檔，再依情境讀下表。`parent issue` 指一份子 PRD 的 GitHub 上層工作單，用於確認 Owner、整體狀態與工作索引；`active Ticket` 是其中已指派、已核可且目前要執行的可獨立驗證工作。SP-02～04 的執行者先進入被指派的 parent issue，再進入被指派的 active Ticket，不從 parent issue 直接開始整份實作。
 
 | 情境 | 必讀文件 | 讀完必須回答 |
 | --- | --- | --- |
@@ -8,7 +8,7 @@
 | 建立、修改或核可子 PRD | [sub-prd-authoring.md](sub-prd-authoring.md)、[模板](templates/sub-prd.md)、[文件權威 ADR](docs/adr/0001-document-authority.md)、[交付模式 ADR](docs/adr/0003-real-slice-delivery.md)、[依賴索引](sub-PRDs/DEPENDENCIES.md) | 完整功能、切片交付、直接依賴、核可範圍與 Ticket 數量是否明確？ |
 | 比賽當日認領子 PRD、建立工作單 | [workflow.md](workflow.md)、已核可子 PRD、[parent issue 模板](templates/parent-issue.md)、[Ticket 模板](templates/ticket.md) | SP-01 保留模式或 SP-02～04 切片模式、Owner、parent issue、branch／PR 如何記錄？ |
 | 比賽規則或簡報準備 | [COMPETITION.md](COMPETITION.md) | Coding 窗口、限制與當日待更新事項是什麼？ |
-| 開始、續做或受阻後切換 Ticket | [workflow.md](workflow.md)、完整子 PRD、目前 Ticket、parent issue、直接交付證據 | 本次主動工作、未完成工作交接、開工／試接／正式交付／完整結案與下一步是什麼？ |
+| 開始、續做或受阻後切換 Ticket | [workflow.md](workflow.md)、完整子 PRD、被指派的 parent issue、被指派且已核可的 active Ticket、直接交付證據 | 本次獲准主動處理哪張 Ticket、未完成工作交接、開工／試接／正式交付／完整結案與下一步是什麼？ |
 | 修改或使用跨功能介面 | 對應的 `docs/contracts/*.md`、相關子 PRD、[PRD.md](PRD.md) | 介面約定、相容範圍與整合證據是什麼？ |
 | 從零建立環境、啟動 UI 或選擇 team/local backend | [後端契約](docs/contracts/backend-contract.md)、[Scheduling Arena 子 PRD](sub-PRDs/scheduling-arena.md) | Python／uv 版本、啟動參數、factory、來源標示及失敗規則是什麼？ |
 | 準備子 PRD 審查、merge 或結案 | [workflow.md](workflow.md)、完整子 PRD、parent issue、[ACCEPTANCE.md](ACCEPTANCE.md) | 哪些測試、人工確認、合併授權與 `main` 證據仍缺少？ |
