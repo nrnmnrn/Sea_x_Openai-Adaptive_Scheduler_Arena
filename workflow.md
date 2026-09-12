@@ -8,7 +8,9 @@
 
 - 該子 PRD 已核可，且交付結果、範圍／不做範圍、PRD coverage、直接依賴與驗收都完整。
 - 官方 coding window 已開始。賽前不預排 Owner，不建立 GitHub issue 或 Ticket。
-- 認領人即為 Owner，建立該子 PRD 的 GitHub parent issue，再依核可子 PRD 建立 2 至 3 張 Ticket；使用 [parent issue 模板](templates/parent-issue.md) 與 [Ticket 模板](templates/ticket.md)。
+- 認領人即為 Owner，先建立該子 PRD 的 GitHub parent issue，使用 [parent issue 模板](templates/parent-issue.md)。
+- Owner 執行 `$to-tickets`，依已核可子 PRD 草擬能從輸入到可觀察結果的 vertical-slice Ticket，並為每張 Ticket 寫明開始條件、驗收條件、直接依賴與 blocker。每份草稿及已發佈 Ticket 都必須遵循 [Ticket 模板](templates/ticket.md)。草稿完成後，須取得人類核可才可發佈 Ticket；核可前不得建立正式 Ticket 或開始實作。
+- Ticket 數量與權威閘門：2 至 3 張是標準；4 至 5 張必須已有子 PRD 中 main branch 負責人的特別核可；超過 5 張不得發佈，必須拆分或縮減子 PRD 後重新核可。Ticket 只記錄執行工作與證據，不得新增、放寬或覆蓋子 PRD 的交付結果、範圍、驗收或直接依賴。
 - Owner 由最新 `main` 建立此子 PRD 唯一的 branch 與 Draft PR，並把 branch、PR 與規格版本連回 parent issue。
 - 已確認直接依賴。依賴一律寫成「Consumer depends on Provider」。Contract 已核定時，Consumer 可依子 PRD 指定的 deterministic adapter／fixture 平行開發。正式整合與 closeout 一律等所有直接 Provider 已 merge 並在 `main` 驗證，不得例外。
 
@@ -16,14 +18,16 @@ main branch 負責人是人類整合與跨功能決策角色；AI 不得自行�
 
 ## 2. 執行一張 Ticket
 
-每個 session 只處理一張目前可開始的 Ticket：
+每個新的實作 session 只在該子 PRD 唯一 branch 處理一張目前可開始的 frontier Ticket；frontier 指其開始條件與直接依賴都已滿足、且真實依賴順序中的下一張 Ticket。不得以 Ticket 編號推定順序，也不得在同一 session 推進另一張 Ticket。
 
-1. 讀 PRD 的共用規則、完整子 PRD、目前 Ticket、parent issue、直接依賴證據、最新 `main` 與未解問題。
-2. 核對 Ticket 的開始條件與驗收條件。依真正依賴順序工作，不以 Ticket 編號推定先後。
-3. 在該子 PRD branch 完成這一張 Ticket，執行相關測試與工作者自驗。
-4. 完成 AI `/code-review`，處理必要發現；AI 提供檢查，不提供人工核可。
-5. 只有驗收與測試通過時才建立清楚的 Ticket commit，並在 parent issue 留下 commit、測試／驗收證據、限制與下一張可開始的 Ticket。
-6. 執行 closeout：核對 Ticket 真的完成、狀態與證據一致，並記錄下一步。closeout 不另建重複 commit。
+1. 讀 PRD 的共用規則、完整子 PRD、目前 Ticket、parent issue、最新 `main` 與未解問題，以及每項直接依賴的證據：Provider 已 merge 並在 `main` 驗證，或已核定的 Contract 加上子 PRD 指定的 deterministic adapter／fixture，可供平行準備。
+2. 核對 Ticket 的開始條件、驗收條件與 blocker。Ticket 只有在每項直接依賴都符合前述其中一種證據時才可開始；只有所有條件成立，才可執行 `$implement`。
+3. `$implement` 只完成此 Ticket 的實作與相關檢查；在結束前執行完整測試套件、完成 AI `/code-review` 並處理必要發現。AI 提供檢查，不提供人工核可。
+4. 只有驗收、相關檢查、完整測試套件與 AI review 都通過時，才建立清楚的 Ticket commit。
+5. 只有真正完成且已有該 commit、所有直接 Provider 都已 merge 並在 `main` 驗證的 Ticket 才執行 `$task-closeout`：reconcile Ticket 驗收、Git 狀態與 tracker 證據，關閉 Ticket，更新 parent issue 的 commit、測試／驗收證據、限制與下一個行動；closeout 不另建重複 commit。
+6. 完成 closeout 後執行 `$handoff`，只寫供下一個 session 導航的暫時交接內容。若仍有可開始的 Ticket，交接指向下一張 frontier Ticket；若已完成最後一張 Ticket，交接指向整份子 PRD 的整體驗收，而不是另一張 Ticket。
+
+若 Ticket 未完成或被 Blocked，保持 Ticket 開啟且不得執行 `$task-closeout` 或關閉 Ticket；可執行只供導航的 `$handoff`，明確指向下一個 session 繼續同一張 Ticket，且不得包含任何 closeout 或關閉宣告。Blocked 狀態仍須依第 3 節留下症狀、嘗試、證據與所需決定。
 
 一張 Ticket 的完成，不等於整個子 PRD 已完成。每張 Ticket 不需要單獨人工 merge 或共同核可。
 
