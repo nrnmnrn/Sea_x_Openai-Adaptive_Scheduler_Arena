@@ -1,0 +1,27 @@
+[project]
+name = "scheduler-arena"
+version = "0.1.0"
+description = "Interactive scheduler arena demo"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "gradio==6.26.0",
+    "plotly==7.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.16.6",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["artifacts"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
