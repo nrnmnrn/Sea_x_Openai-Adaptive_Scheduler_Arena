@@ -92,9 +92,9 @@ class Job:
     def as_dict(self, now: float) -> dict[str, Any]:
         feasible = self.feasible
         if self.status == "pending":
-            feasible = now + self.processing_time <= self.deadline + EPSILON
+            feasible = now + self.processing_time <= self.deadline
         elif self.status == "running":
-            feasible = self.started_at + self.processing_time <= self.deadline + EPSILON
+            feasible = self.started_at + self.processing_time <= self.deadline
         return {
             "id": self.id,
             "arrival": self.arrival,
@@ -213,7 +213,7 @@ class SchedulerBackend:
             job = Job.from_input(raw)
             if job.id in seen or job.id in parsed_ids:
                 raise AdapterValidationError(f"duplicate job id: {job.id}")
-            if not allow_past and job.arrival < self.time - EPSILON:
+            if not allow_past and job.arrival < self.time:
                 raise AdapterValidationError("arrival cannot be earlier than current time")
             parsed_ids.add(job.id)
 
@@ -237,8 +237,12 @@ class SchedulerBackend:
             raise AdapterValidationError("count must be 1 or 4")
         rng_state = self._rng.getstate()
         generated = []
+        occupied_ids = set(self.jobs)
         for _ in range(count):
-            index = len(self.jobs) + len(generated) + 1
+            index = 1
+            while f"J{index}" in occupied_ids:
+                index += 1
+            occupied_ids.add(f"J{index}")
             processing = float(1 + self._rng.randrange(5))
             generated.append(
                 {
@@ -284,12 +288,12 @@ class SchedulerBackend:
         dt = float(_number(dt, "dt"))
         if dt < 0:
             raise AdapterValidationError("dt must be non-negative")
-        if self._paused_for_adaptation and dt > EPSILON:
+        if self._paused_for_adaptation:
             raise AdapterOperationError(
                 "simulation is paused for adaptation", state_uncertain=False
             )
         target = round(self.time + dt, 10)
-        while self.time < target - EPSILON:
+        while self.time < target:
             self._settle_current_time()
             next_times = [target]
             running = self._running_job()
@@ -299,7 +303,7 @@ class SchedulerBackend:
                 job.arrival for job in self.jobs.values() if job.status == "scheduled"
             )
             next_times.extend(job.deadline for job in self.jobs.values() if job.status == "pending")
-            next_time = min(value for value in next_times if value > self.time + EPSILON)
+            next_time = min(value for value in next_times if value > self.time)
             self.time = round(min(next_time, target), 10)
         self._settle_current_time()
         self._record_series()
@@ -348,6 +352,7 @@ class SchedulerBackend:
                     "message": "SP-01 未啟用 adaptation",
                     "adaptation_id": None,
                     "candidate_id": None,
+                    "workload_window": None,
                 },
                 "capacity": {
                     "total": len(self.jobs),
@@ -384,7 +389,7 @@ class SchedulerBackend:
 
     def _settle_current_time(self) -> None:
         running = self._running_job()
-        if running and self.time + EPSILON >= running.started_at + running.processing_time:
+        if running and self.time >= running.started_at + running.processing_time:
             running.status = "completed"
             running.completed_at = running.started_at + running.processing_time
             segment = self._segment_for(running.segment_id)
@@ -397,7 +402,7 @@ class SchedulerBackend:
                 message="訂單完成",
             )
         for job in self.jobs.values():
-            if job.status == "pending" and self.time + EPSILON >= job.deadline:
+            if job.status == "pending" and self.time >= job.deadline:
                 job.status = "expired"
                 job.dropped_at = job.deadline
                 segment = self._segment_for_expiry()
@@ -405,7 +410,7 @@ class SchedulerBackend:
                 segment.expired += 1
                 self._add_event("expired", job_id=job.id, message="截止後丟棄")
         for job in self.jobs.values():
-            if job.status == "scheduled" and job.arrival <= self.time + EPSILON:
+            if job.status == "scheduled" and job.arrival <= self.time:
                 job.status = "pending"
                 self._add_event("arrived", job_id=job.id, message="訂單到達")
         if self._running_job() is None:
@@ -430,7 +435,7 @@ class SchedulerBackend:
                 )
 
     def _is_feasible(self, job: Job) -> bool:
-        return self.time + job.processing_time <= job.deadline + EPSILON
+        return self.time + job.processing_time <= job.deadline
 
     def _policy_key(self, job: Job) -> tuple[Any, ...]:
         if self.policy_id == "fifo":

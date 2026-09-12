@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import difflib
 import importlib
 from collections.abc import Callable
@@ -20,13 +21,14 @@ class SessionController:
         self.revision = 0
         self.playing = False
         self.speed = 1.0
+        self._last_accepted_envelope: dict[str, Any] | None = None
 
     def envelope(
         self, snapshot: dict[str, Any] | None = None, error: str | None = None
     ) -> dict[str, Any]:
-        snapshot = snapshot or self.backend.snapshot()
+        snapshot = self.backend.snapshot() if snapshot is None else snapshot
         self.revision += 1
-        return {
+        envelope = {
             "snapshot": snapshot,
             "skills": self.backend.list_skills(),
             "session_generation": self.generation,
@@ -36,13 +38,30 @@ class SessionController:
             "speed": self.speed,
             "error": error,
         }
+        self._last_accepted_envelope = copy.deepcopy(envelope)
+        return envelope
+
+    def _cached_error(self, error: str) -> dict[str, Any]:
+        if self._last_accepted_envelope is None:
+            raise RuntimeError("no accepted session state is available")
+        envelope = copy.deepcopy(self._last_accepted_envelope)
+        self.revision += 1
+        envelope["revision"] = self.revision
+        envelope["playing"] = False
+        envelope["error"] = error
+        return envelope
 
     def call(self, operation: Callable[[], dict[str, Any]]) -> dict[str, Any]:
         try:
             return self.envelope(operation())
         except (ValueError, RuntimeError) as exc:
             self.playing = False
-            return self.envelope(error=str(exc))
+            if isinstance(exc, RuntimeError) and getattr(exc, "state_uncertain", False):
+                return self._cached_error(str(exc))
+            try:
+                return self.envelope(error=str(exc))
+            except (ValueError, RuntimeError):
+                return self._cached_error(str(exc))
 
     def reset(self) -> dict[str, Any]:
         self.playing = False
@@ -65,8 +84,19 @@ class SessionController:
         return self.call(lambda: self.backend.set_policy(policy_id, "Developer mode 套用技能"))
 
     def toggle_play(self, playing: bool) -> dict[str, Any]:
-        self.playing = playing
-        return self.envelope()
+        def operation() -> dict[str, Any]:
+            snapshot = self.backend.snapshot()
+            adaptation = snapshot.get("adaptation", {})
+            if playing and adaptation.get("stage", "idle") != "idle":
+                self.playing = False
+                return snapshot
+            self.playing = playing
+            return snapshot
+
+        envelope = self.call(operation)
+        if playing and envelope["snapshot"].get("adaptation", {}).get("stage") != "idle":
+            envelope["error"] = "adaptation 進行中，暫停播放"
+        return envelope
 
     def set_speed(self, speed: float) -> dict[str, Any]:
         self.speed = speed
@@ -81,9 +111,11 @@ class SessionController:
         )
 
 
-def load_backend(backend_name: str, factory_path: str | None) -> tuple[Any, str]:
+def load_backend_factory(
+    backend_name: str, factory_path: str | None
+) -> tuple[Callable[[], Any], str]:
     if backend_name == "local":
-        return create_backend(), "本機備援"
+        return create_backend, "本機備援"
     if backend_name != "team":
         raise ValueError("backend 必須是 local 或 team")
     if not factory_path or ":" not in factory_path:
@@ -93,7 +125,12 @@ def load_backend(backend_name: str, factory_path: str | None) -> tuple[Any, str]
     factory = getattr(module, function_name, None)
     if not callable(factory):
         raise TypeError(f"找不到可呼叫的 factory：{factory_path}")
-    return factory(seed=42, initial_jobs=None), "隊友後端"
+    return lambda: factory(seed=42, initial_jobs=None), "隊友後端"
+
+
+def load_backend(backend_name: str, factory_path: str | None) -> tuple[Any, str]:
+    factory, source = load_backend_factory(backend_name, factory_path)
+    return factory(), source
 
 
 def render_arena(envelope: dict[str, Any]) -> str:
@@ -277,7 +314,7 @@ def render_metrics(envelope: dict[str, Any]) -> str:
         or "| — | — | — | — | — |"
     )
     skill_text = "\n".join(
-        f"- {skill['name']}嚗蝙??{skill['uses']} 甈∴?靘? {skill['source']}"
+        f"- {skill['name']}：使用 {skill['uses']} 次；來源：{skill['source']}"
         for skill in envelope["skills"]
     )
     return f"""### Metrics & Code
@@ -326,6 +363,19 @@ Snapshot: `{snapshot["run_id"]}` / revision `{envelope["revision"]}` / time `{sn
 
 {skill_text}
 """
+
+
+def render_skill_preview(skill_id: str | None, skills: list[dict[str, Any]]) -> str:
+    skill = next((item for item in skills if item["id"] == skill_id), None)
+    if skill is None:
+        return "請選擇技能以查看預覽。"
+    verified = "是" if skill["verified"] else "否"
+    return (
+        f"### {skill['name']}\n\n"
+        f"{skill['description']}\n\n"
+        f"來源：`{skill['source']}`　已驗證：`{verified}`　使用次數：`{skill['uses']}`\n\n"
+        f"```python\n{skill['code']}\n```"
+    )
 
 
 APP_CSS = """
@@ -425,7 +475,18 @@ def build_app(
         with gr.Tab("Metrics & Code"):
             metrics = gr.Markdown(render_metrics(initial))
         with gr.Tab("Skill Library"):
-            library = gr.JSON(initial["skills"])
+            skill_selector = gr.Dropdown(
+                choices=[(skill["name"], skill["id"]) for skill in initial["skills"]],
+                value=initial["skills"][0]["id"] if initial["skills"] else None,
+                label="選擇技能（僅預覽）",
+            )
+            skill_preview = gr.Markdown(
+                render_skill_preview(
+                    initial["skills"][0]["id"] if initial["skills"] else None,
+                    initial["skills"],
+                )
+            )
+            library = gr.JSON(initial["skills"], label="技能資料")
 
         scheduler_inputs = [controller_state, view_state]
         scheduler_outputs = [
@@ -509,6 +570,11 @@ def build_app(
             trigger_mode="always_last",
             **scheduler_event,
         )
+        skill_selector.change(
+            render_skill_preview,
+            inputs=[skill_selector, library],
+            outputs=skill_preview,
+        )
     return demo
 
 
@@ -524,10 +590,10 @@ def main() -> None:
     parser.add_argument("--mode", choices=("demo", "developer"), default="demo")
     parser.add_argument("--port", type=int, default=7860)
     args = parser.parse_args()
-    backend, source = load_backend(args.backend, args.factory)
-    build_app(SessionController(backend, source, args.mode)).launch(
-        server_name="127.0.0.1", server_port=args.port, share=False, css=APP_CSS
-    )
+    backend_factory, source = load_backend_factory(args.backend, args.factory)
+    build_app(
+        controller_factory=lambda: SessionController(backend_factory(), source, args.mode)
+    ).launch(server_name="127.0.0.1", server_port=args.port, share=False, css=APP_CSS)
 
 
 if __name__ == "__main__":
