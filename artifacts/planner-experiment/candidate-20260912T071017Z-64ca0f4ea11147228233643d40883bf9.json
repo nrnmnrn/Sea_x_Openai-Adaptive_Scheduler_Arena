@@ -1,0 +1,39 @@
+{
+  "experiment_only": true,
+  "request": {
+    "input": "Generate one policy draft for the supplied synthetic jobs. Return only the schema.\npolicy_code must define pure Python choose_job(jobs, now). Jobs are dictionaries with\nid, arrival, processing_time, priority, deadline, and status. Consider only arrived,\npending, feasible jobs where now + processing_time <= deadline. Choose deterministically\nby priority descending, then deadline, processing_time, arrival, and id. Return an ID or\nNone. Do not mutate input. Use no imports, I/O, network access, or other functions. reason \u8207 workload_scope \u5fc5\u9808\u4f7f\u7528\u7e41\u9ad4\u4e2d\u6587\uff1b\u7a0b\u5f0f\u78bc\u8b58\u5225\u5b57\u4fdd\u6301 Python \u82f1\u6587\u3002\n\nSynthetic input:\n{\"description\": \"Synthetic jobs; not all-skills-failed or evaluator evidence.\", \"experiment_only\": true, \"jobs\": [{\"arrival\": 0, \"deadline\": 6, \"id\": \"urgent\", \"priority\": 9, \"processing_time\": 3, \"status\": \"pending\"}, {\"arrival\": 0, \"deadline\": 20, \"id\": \"short\", \"priority\": 1, \"processing_time\": 1, \"status\": \"pending\"}], \"now\": 0}",
+    "max_output_tokens": 4096,
+    "model": "gpt-6-astra",
+    "reasoning": {
+      "effort": "low"
+    },
+    "store": false,
+    "text": {
+      "format": {
+        "name": "candidate_draft",
+        "schema": {
+          "additionalProperties": false,
+          "properties": {
+            "policy_code": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "workload_scope": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "reason",
+            "policy_code",
+            "workload_scope"
+          ],
+          "type": "object"
+        },
+        "strict": true,
+        "type": "json_schema"
+      }
+    }
+  }
+}
