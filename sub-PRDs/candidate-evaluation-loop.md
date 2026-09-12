@@ -3,8 +3,8 @@
 ## 基本資料
 
 - 狀態：`Unclaimed`
-- 核可狀態：待人類核可；未核可前不可開始實作
-- 版本：`0.1-draft`
+- 核可狀態：原型 A／B 開工依 workflow 與工作分類；產品／契約待決事項及整份驗收未核准，不推定完整交付
+- 版本：`0.3-draft`
 - Owner：待比賽當日認領
 - GitHub parent issue：待比賽當日認領後建立
 - 核可紀錄：待填核可者、日期與連結
@@ -36,13 +36,17 @@
 | `PRD.md`「Demo 與 Developer mode」 | Demo 不提供人工 accept；外部錯誤不 fallback Mock；明確顯示來源。 | R13、R20；錯誤與瀏覽器證據。 |
 | `PRD.md`「90 秒短展示與 progression run」 | 顯示 AI 自動 Planner、Candidate、Critic、gate 與 promotion 前 sandbox 證據。 | R19–R20；team mode 短展示與 progression 紀錄。 |
 
+## 原型開發分類
+
+依[工作分類表](../docs/product/prototype-work-plan.md)在原 Ticket 內先做 A 獨立或 B 邊做邊談的內部部分，開始前記錄範圍、接口 ID 及未驗證項，不等待整份契約凍結。C 僅停止依賴未決答案的部分。接口討論與決策紀錄集中於[共用表單](../docs/product/interface-discussion-board.md)。開發版試接可使用可辨識的真實未合併版本，條件依 [workflow](../workflow.md)；下表整合條件均指正式交付，並非開發版試接門檻。
+
 ## 介面與直接依賴
 
 | 方向（Consumer depends on Provider） | 類型 | 需要的輸出或 contract | 可開始條件 | 整合條件 | 理由 |
 | --- | --- | --- | --- | --- | --- |
-| SP-03 depends on SP-02 | Contract | run／window 唯一 TriggerResult、既有 Skill EvaluationResult、all-failed 判定、active adaptation context | 契約已核定；使用 deterministic all-failed fixture | SP-02 實際輸出驅動 loop | Candidate 只能在全部既有 Skills 失敗後建立。 |
-| SP-03 depends on SP-01 | Contract | sandbox、baseline Snapshot、metrics、events、pause／resume、手動恢復 UI 插入點 | 契約已核定；使用 baseline fixture | SP-01 證明 sandbox／live 隔離與 clock pause | Candidate 必須在 scheduler contract 上安全評估。 |
-| SP-03 depends on SP-01、SP-02 | Integration | 真實 trigger、all-failed context、pause／resume、retry、sandbox／live 比較 | Contract fixtures 可先行 | team mode 完成聯合驗收 | 驗證真實 all-failed 串接。 |
+| SP-03 depends on SP-02 | Contract | run／window 唯一 TriggerResult、既有 Skill EvaluationResult、all-failed 判定、active adaptation context | A／B 依原型分類先行；C 的受影響操作先決定，真實試接依 workflow | S02-A merge 並在 main 驗證；真實完整全敗輸出驅動 loop | Candidate 只能在全部既有 Skills 失敗後建立。 |
+| SP-03 depends on SP-01 | Contract | sandbox、baseline Snapshot、metrics、events、pause／resume、手動恢復 UI 插入點 | A／B 依原型分類先行；C 的受影響操作先決定，真實試接依 workflow | S01-FULL main 證據及核准的真實 sandbox／pause 能力 | Candidate 必須在 scheduler contract 上安全評估。 |
+| SP-03 depends on SP-01、SP-02 | Integration | 真實 trigger、all-failed context、pause／resume、retry、sandbox／live 比較 | A／B 依原型分類先行；C 的受影響操作先決定，真實試接依 workflow | team mode 完成聯合驗收 | 驗證真實 all-failed 串接。 |
 
 本子 PRD 向 SP-04 提供 gate-passed Candidate、完整 EvaluationResult 與不可變 promotion input。
 
@@ -66,7 +70,7 @@
 
 ## Ticket 設計與數量閘門
 
-預估 Ticket 數：3 張。以下是賽前 vertical-slice 設計，不是已建立的 GitHub Ticket：
+預估 Ticket 數：3 張。以下為待核可的真實切片設計，不代表已建立 GitHub Ticket；交付對照見下節：
 
 1. **從 all-skills-failed 到單版 Candidate 結果。** 消費失敗 context，產生唯一 Candidate，在隔離 sandbox 執行 gate，並顯示 lineage 與比較證據。
 2. **從 Candidate 拒絕到 Critic loop 結束。** 保存 feedback、產生後續版本，於通過或第五版失敗時留下完整可見結果，且不修改 Live Run。
@@ -75,3 +79,19 @@
 ## 已核定產品行為
 
 外部 adapter 錯誤統一記錄 `adaptation_error`，UI 顯示失敗 stage 與原因。系統不得自動 retry；僅在狀態可證明安全時提供手動 retry，狀態不明時只提供 resync 或 reset，且不得自動切換 Mock。
+
+## 真實切片交付與開始條件
+
+採 [workflow](../workflow.md) 的 SP-02～04 切片模式；以下 ID 是規格交付識別，不是已發佈 Ticket。每張 Ticket 自己的 branch／PR 經人類授權 merge、main 驗證後才結案；整份功能仍須全部驗收。相關契約見 [H1～H8](../docs/contracts/adaptation-contract.md)，未決內容見 [D1～D9](../docs/product/adaptation-decisions.md)。
+
+| 交付 ID | 提供的真實結果 | 正式整合所需上游 | 使用者 | 待決 blocker | 驗證方式 |
+| --- | --- | --- | --- | --- | --- |
+| S03-A | 真實全敗到單版 Candidate 與 passed 交接（H3～H6、H8） | S01-FULL、S02-A 的 H4；共用評估 Provider 待 D4 | SP-04 使用 H6 | D2～D9 | 真實全敗才呼叫 Planner；sandbox gate、lineage、不可變結果；外部錯誤至少安全停止，不將未完成視為 passed。 |
+| S03-B | 拒絕到 Critic loop 結束（H5、H6） | S01-FULL、S02-A、S03-A | SP-04 與完整 SP-03 驗收 | D2～D6、D8、D9 | 真實 feedback／後續版本、通過或第五版失敗，保持 Live Policy；含各 stage 安全停止。 |
+| S03-C | 外部錯誤到安全手動恢復（H7、H8） | S01-FULL、S02-A、S03-A、S03-B | 各候選 stage 與完整功能驗收 | D4～D9 | 真實 adapter 受控 timeout/schema 故障，安全 retry、不重做成功副作用、resync/reset；不能靠 Mock fallback。 |
+
+- 原型開工依上述 A／B／C 分類；表列 D 項阻擋的是依賴答案的部分及正式交付，不是整組停工。未定語意／責任不自行補值；未接真實上游不宣稱相應結果通過。
+- 正式整合時，表列上游均需 merge 並在 main 驗證；S01-FULL 指 SP-01 整份完成，不要求其提前拆分。
+- 每個早期切片都要包含安全停止與自身副作用保護；後續恢復切片補完整手動恢復，不是允許前段省略錯誤處理。
+- 本次不調整原有產品責任或降低原驗收。D4 責任配置、D6 Snapshot 不變範圍等尚未解決時，停止相應交付，不自行推定 SP-01 或其他 Provider 已承諾。
+- 完整子 PRD 結案仍需所有直接 Provider 的完整所需成果與全流程驗收；切片提早交付不代表略過其他路徑。

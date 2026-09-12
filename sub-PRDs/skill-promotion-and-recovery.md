@@ -3,8 +3,8 @@
 ## 基本資料
 
 - 狀態：`Unclaimed`
-- 核可狀態：待人類核可；未核可前不可開始實作
-- 版本：`0.1-draft`
+- 核可狀態：原型 A／B 開工依 workflow 與工作分類；產品／契約待決事項及整份驗收未核准，不推定完整交付
+- 版本：`0.3-draft`
 - Owner：待比賽當日認領
 - GitHub parent issue：待比賽當日認領後建立
 - 核可紀錄：待填核可者、日期與連結
@@ -35,13 +35,17 @@
 | `PRD.md`「Demo 與 Developer mode」 | Demo 無人工 accept；失敗不 fallback Mock；顯示錯誤與來源。 | R16、R20；瀏覽器及錯誤證據。 |
 | `PRD.md`「90 秒短展示與 progression run」 | 顯示 Skill Library、registration、activation、resume、next dispatch 與逐輪 live／sandbox 差異。 | R19–R20；team mode 短展示與 progression 紀錄。 |
 
+## 原型開發分類
+
+依[工作分類表](../docs/product/prototype-work-plan.md)在原 Ticket 內先做 A 獨立或 B 邊做邊談的內部部分，開始前記錄範圍、接口 ID 及未驗證項，不等待整份契約凍結。C 僅停止依賴未決答案的部分。接口討論與決策紀錄集中於[共用表單](../docs/product/interface-discussion-board.md)。開發版試接可使用可辨識的真實未合併版本，條件依 [workflow](../workflow.md)；下表整合條件均指正式交付，並非開發版試接門檻。
+
 ## 介面與直接依賴
 
 | 方向（Consumer depends on Provider） | 類型 | 需要的輸出或 contract | 可開始條件 | 整合條件 | 理由 |
 | --- | --- | --- | --- | --- | --- |
-| SP-04 depends on SP-03 | Contract | gate-passed Candidate、EvaluationResult、Candidate lineage | 契約已核定；使用 fixed passed result | SP-03 實際 gate 輸出驅動 register | 僅合格 Candidate 可 promotion。 |
-| SP-04 depends on SP-01 | Contract | Skill Library、dispatch attribution、Snapshot、events、segments、pause／resume、reset、UI shell | 契約已核定；使用 deterministic adapter | SP-01 的 dispatch、pause／resume、reset、三 tabs 聯合驗收 | promotion 必須進入 live scheduler。 |
-| SP-04 depends on SP-01、SP-03 | Integration | passed Candidate、registration、activation、resume、dispatch attribution、retry／reset evidence | Contract fixtures 可先行 | team mode 完成完整路徑 | 驗證真實 promotion 整合。 |
+| SP-04 depends on SP-03 | Contract | gate-passed Candidate、EvaluationResult、Candidate lineage | A／B 依原型分類先行；C 的受影響操作先決定，真實試接依 workflow | S03-A merge 並在 main 驗證；真實 gate 輸出驅動 register | 僅合格 Candidate 可 promotion。 |
+| SP-04 depends on SP-01 | Contract | Skill Library、dispatch attribution、Snapshot、events、segments、pause／resume、reset、UI shell | A／B 依原型分類先行；C 的受影響操作先決定，真實試接依 workflow | SP-01 的 dispatch、pause／resume、reset、三 tabs 聯合驗收 | promotion 必須進入 live scheduler。 |
+| SP-04 depends on SP-01、SP-03 | Integration | passed Candidate、registration、activation、resume、dispatch attribution、retry／reset evidence | A／B 依原型分類先行；C 的受影響操作先決定，真實試接依 workflow | team mode 完成完整路徑 | 驗證真實 promotion 整合。 |
 
 
 ## 必要行為
@@ -64,7 +68,7 @@
 
 ## Ticket 設計與數量閘門
 
-預估 Ticket 數：3 張。以下是賽前 vertical-slice 設計，不是已建立的 GitHub Ticket：
+預估 Ticket 數：3 張。以下為待核可的真實切片設計，不代表已建立 GitHub Ticket；交付對照見下節：
 
 1. **從 gate-passed Candidate 到 verified Skill。** 拒絕未通過、重複或狀態不明 input；通過 input 登錄後可在 Skill Library 查到來源與 gate 證據。
 2. **從 Skill activation 到恢復與下一次 dispatch。** 保留 running Job，成功後恢復 simulation clock；下一次 dispatch 使用新 Skill，並顯示原因、時間、segment、attribution 與 event。
@@ -73,3 +77,19 @@
 ## 已核定產品行為
 
 已 dispatch Job 的 segment metrics 依 dispatch 時的 Policy／segment 歸屬，跨切換後才結束亦不改歸屬；未 dispatch 即 expired 者歸 expiry 時 segment。本版 Skill 僅使用後端契約列出的最小欄位，不增加 metadata；segment metrics 不取代 sandbox gate。
+
+## 真實切片交付與開始條件
+
+採 [workflow](../workflow.md) 的 SP-02～04 切片模式；以下 ID 是規格交付識別，不是已發佈 Ticket。每張 Ticket 自己的 branch／PR 經人類授權 merge、main 驗證後才結案；整份功能仍須全部驗收。相關契約見 [H1～H8](../docs/contracts/adaptation-contract.md)，未決內容見 [D1～D9](../docs/product/adaptation-decisions.md)。
+
+| 交付 ID | 提供的真實結果 | 正式整合所需上游 | 使用者 | 待決 blocker | 驗證方式 |
+| --- | --- | --- | --- | --- | --- |
+| S04-A | 真實 gate-passed 到 verified Skill（H6、H8） | S01-FULL、S03-A 的 H6；底層 register Provider 待 D4 | Skill Library、S04-B | D4、D6、D8、D9 | 真實接受的 candidate/version/code/result 對應、拒絕與重複登錄；含部分失敗安全停止。 |
+| S04-B | 啟用、恢復與下次 dispatch（H2、H6～H8） | S01-FULL、S03-A、S04-A | Live Run、完整功能驗收 | D1、D4～D9 | 真實啟用與 resume、segment、attribution、running Job；同步失敗不盲目重送。 |
+| S04-C | promotion failure 到可恢復狀態（H7、H8） | S01-FULL、S03-A、S04-A、S04-B | 完整 SP-04 與產品驗收 | D4～D9 | 真實 register/activate/snapshot 受控失敗、安全 retry、未知狀態 resync/reset；最後有效畫面。 |
+
+- 原型開工依上述 A／B／C 分類；表列 D 項阻擋的是依賴答案的部分及正式交付，不是整組停工。未定語意／責任不自行補值；未接真實上游不宣稱相應結果通過。
+- 正式整合時，表列上游均需 merge 並在 main 驗證；S01-FULL 指 SP-01 整份完成，不要求其提前拆分。
+- 每個早期切片都要包含安全停止與自身副作用保護；後續恢復切片補完整手動恢復，不是允許前段省略錯誤處理。
+- 本次不調整原有產品責任或降低原驗收。D4 責任配置、D6 Snapshot 不變範圍等尚未解決時，停止相應交付，不自行推定 SP-01 或其他 Provider 已承諾。
+- 完整子 PRD 結案仍需所有直接 Provider 的完整所需成果與全流程驗收；切片提早交付不代表略過其他路徑。

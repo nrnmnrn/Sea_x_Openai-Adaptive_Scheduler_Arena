@@ -1,6 +1,6 @@
 # 子 PRD 模板
 
-> 賽前只撰寫與核可本檔，不預先指定人員或建立 GitHub 工作單。方括號內容請在核實後替換。
+> 方括號內容在核實後替換。賽前不預先指定人員或建立工作單；比賽期間依 workflow 認領核可範圍。SP-01 保留正在執行的整份交付，不套用模板重建其工作。
 
 ## 基本資料
 
@@ -9,6 +9,9 @@
 - Owner：待比賽當日認領
 - GitHub parent issue：待比賽當日認領後建立
 - 核可紀錄：[核可者、日期與連結]
+- 交付模式：[SP-01 保留整份／SP-02～04 真實切片]
+- 局部核可範圍：[交付 ID、契約版本、驗收與人類核可證據；無則未核可，不推定整份核可]
+- Prototype 分類與 interface issues：[A／B／C 範圍、I01–I09 或已登錄 ID、討論狀態與相關 H 交接／D 決策 ID、排除範圍與未驗證項；無則 `Not applicable`]
 
 ## 交付結果
 
@@ -32,11 +35,23 @@
 
 | 方向（Consumer depends on Provider） | 類型 | 需要的輸出或 contract | 可開始條件 | 整合條件 | 理由 |
 | --- | --- | --- | --- | --- | --- |
-| [Consumer] depends on [Provider]，或 `None` | [Hard／Contract／Integration] | [內容] | [Provider 已在 main 驗證，或核可例外] | [內容] | [原因] |
+| [Consumer] depends on [Provider]，或 `None` | [Hard／Contract／Integration] | [交付 ID、契約章節／版本] | [相關範圍已核准；哪些步驟需要真實上游，哪些尚不能驗證] | [所需上游交付 merge 並在 main 驗證；SP-01 為整份交付] | [原因] |
+
+interface discussion board 僅記錄協調；決定先寫入並核可 PRD、子 PRD 或 contract。名稱／格式在語意不變時可局部調整；未決行為、控制或安全只阻擋受影響操作。
+
+## 必要交付
+
+| 交付 ID | 提供者 → 使用者 | 契約位置／版本 | 真實輸入與可觀察結果 | 驗證方式 | 未決事項／受阻工作 |
+| --- | --- | --- | --- | --- | --- |
+| [ID] | [功能責任，不預填人名] | [唯一權威位置] | [內容] | [正常、拒絕、錯誤、整合證據] | [決策 ID 或 None] |
+
+交付與 Ticket 對應在核可時確認；每張切片必須包含可安全合併所需的錯誤處理。若有開發版試接，另記指定人類 integrator、Owner 許可、隔離 branch／worktree、真實未 merge Provider 版本、實際輸入、保護措施與版本／錯誤證據。試接與正式 `main` 證據分列；Ticket 結案與整份子 PRD 結案依 [workflow](../workflow.md)，不以固定回應替代真實上游。
 
 ## 驗收
 
 [整體功能驗收、相關測試、可觀察結果與必要整合驗收。]
+
+prototype milestone：[只列已核可的完成子集；不得作為完整功能或產品完成宣告。]
 
 ## Ticket 設計與數量閘門
 

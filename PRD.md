@@ -2,7 +2,9 @@
 
 ## 文件定位
 
-本文件是產品需求的唯一權威。它與 [後端契約](docs/contracts/backend-contract.md) 及四份子 PRD 一起交付給未來 implementation repository。`build-handoff_final` 尚待獨立驗收；在驗收通過前，它是候選 handoff，不宣稱已取代其他文件。
+本文件是產品需求的唯一權威，與 [後端契約](docs/contracts/backend-contract.md) 及四份子 PRD 用於目前比賽實作 repository。開發已開始不代表全部規格已獨立驗收；本次流程修訂與未決產品規則仍須區分。
+
+交付方式依 [workflow](workflow.md) 與 [ADR 0004](docs/adr/0004-prototype-parallel-development.md)：SP-01 保留完整交付，SP-02～04 採原型異步開發與持續試接，正式切片交付門檻保留。這不改變下列產品行為。尚缺的產品決策列於[待決清單](docs/product/adaptation-decisions.md)，交接缺口列於[交接契約](docs/contracts/adaptation-contract.md)；未決數值、schema 與責任不得當成已核准預設。
 
 本產品為一個可觀察、可驗證的排程模擬展示：workload 改變造成服務指標惡化時，Agent 先重用已驗證 Skill；全部失敗後才產生、隔離評估及晉升新的 Candidate。正式展示中，使用者只控制模擬與 workload，不能代替 Agent 作 policy 決策。
 

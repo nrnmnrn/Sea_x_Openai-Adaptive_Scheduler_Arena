@@ -1,6 +1,6 @@
 # 實作 repository 的工作指引
 
-本資料夾複製到未來比賽實作 repository 後才用於開發。開始任何工作先讀 [INDEXER.md](INDEXER.md)，只載入該情境指定的文件。
+本 repository 已進入比賽實作期間。開始任何工作先讀 [INDEXER.md](INDEXER.md)，只載入該情境指定的文件。
 
 ## 權威與邊界
 
@@ -10,16 +10,17 @@
 - GitHub parent issue 與 Ticket 只記錄認領、進度、連結、測試證據、blocker 與核可；它們不取代規格。
 - 規格衝突或缺少足以開始的資訊時，停止受影響工作，依 [workflow.md](workflow.md) 記錄並請 main branch 負責人處理。
 
-此交接包仍待獨立驗收。賽前不指定 Owner、不建立 GitHub issue 或 Ticket，也不在此資料夾建立競賽程式碼。官方 coding window 開始後，認領已核可子 PRD 的人即為 Owner，並建立該功能唯一的 parent issue、branch、Draft PR 與必要 Ticket。
+認領已核可範圍的人即為 Owner，每份子 PRD 保留唯一 parent issue。SP-01 已在執行，維持原單一 branch／Draft PR 完整交付；SP-02～04 依 [workflow.md](workflow.md) 採每張 Ticket 的真實切片 branch／PR。流程核准不等於產品、契約或整份規格已驗收。
 
 ## 執行原則
 
 - 開始工作前，先理解使用者的目標、範圍、限制與完成標準；再檢查並選用與任務直接相關的 skill。依所選 skill 決定須讀取的文件、執行步驟與驗證方式。僅使用必要 skill，不得以 skill 取代或擴張使用者需求；若無合適 skill，依本文件及 repository 既有模式執行。
 - 目前 branch 非 `main`，或本次已認領／承接任何子 PRD 或 Ticket 時，開始前必須完整讀 [workflow.md](workflow.md)。僅管理 `main` 且未承接子 PRD／Ticket 者不強制。
-- 每次子 PRD／Ticket session 只完成一張已準備好的 Ticket；開始檢查包含完整子 PRD、目前 Ticket、[workflow.md](workflow.md)、[依賴索引](sub-PRDs/DEPENDENCIES.md)的開始條件、直接 Provider 證據與最新 `main`。
-- 依賴方向固定寫為「Consumer depends on Provider」：使用成果的一方依賴提供成果的一方。Contract 已核定時，下游可用子 PRD 指定的 deterministic adapter／fixture 平行準備；正式整合與 closeout 一律等 Provider 成果已 merge 並在 `main` 驗證。
-- 一份子 PRD 對應一條 branch 和一個 Draft PR；每張完成的 Ticket 留下清楚 commit、測試與 AI review 證據。
-- 子 PRD 全部 Ticket 完成後，還要做整體功能驗收、完整測試、Owner 自查、另一位成員確認、正式 PR merge 與 `main` 整合驗收，才能關閉 parent issue。
+- 承接 SP-02～04 時，先從被指派子 PRD 的 parent issue 確認 Owner、整體狀態與工作索引，再進入被指派且已核可的 active Ticket 實作。parent issue 不直接授權整份實作；實際範圍、branch／PR、未決事項與驗證證據記在 active Ticket，不得自行挑選或開始尚未建立、未被指派或未核可的下一張 Ticket。
+- 每次只主動處理一張已準備好的 Ticket；開始前讀完整子 PRD、Ticket、[workflow.md](workflow.md)、[依賴索引](sub-PRDs/DEPENDENCIES.md)、必要交付證據與最新 `main`。受阻後切換須先依 workflow 留下可恢復交接，原工作保持 Open。
+- 依賴方向固定為「Consumer depends on Provider」。原型工作先讀[工作分類](docs/product/prototype-work-plan.md)與[接口討論表](docs/product/interface-discussion-board.md)，依 workflow 區分 A 獨立、B 邊做邊談、C 受影響部分先決定；開發版試接不等於正式交付，不以替身證明接通。
+- SP-01 維持完整交付，不要求提前切片；任何涉及其責任、介面或驗收的實質變更，先取得該負責人確認及人類核可。
+- 每項完成交付留下 commit、測試、AI review 與所需人類／`main` 證據；所有切片完成仍須完整子 PRD 驗收，才能關閉 parent issue。
 - 同一 blocker 超過 15 分鐘，或完成兩次有證據的嘗試仍無法前進時，標示 Blocked 並回報；不要自行改寫需求或介面。
 
 完整步驟與結案條件在 [workflow.md](workflow.md)。子 PRD 的撰寫與拆分規則在 [sub-prd-authoring.md](sub-prd-authoring.md)。
