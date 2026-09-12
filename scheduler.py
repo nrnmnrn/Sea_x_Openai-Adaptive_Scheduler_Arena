@@ -176,6 +176,8 @@ class SchedulerBackend:
         self.series: list[dict[str, Any]] = []
         self.segments = [Segment("segment-1", "fifo", 0.0)]
         self._paused_for_adaptation = False
+        self._evaluation_replay = False
+        self._adaptation: dict[str, Any] | None = None
         self._uses = {skill_id: 0 for skill_id in INITIAL_SKILLS}
         self._last_applied = {skill_id: None for skill_id in INITIAL_SKILLS}
         raw_jobs = self._default_jobs(seed) if initial_jobs is None else initial_jobs
@@ -222,16 +224,19 @@ class SchedulerBackend:
         return self.snapshot()
 
     def inject(self, jobs: list[dict[str, Any]]) -> dict[str, Any]:
+        self._assert_not_adapting()
         self._validate_batch(jobs, allow_past=False)
         new_jobs = [Job.from_input(raw) for raw in copy.deepcopy(jobs)]
         for job in new_jobs:
             self.jobs[job.id] = job
         self._settle_current_time()
         self._record_series()
-        self.snapshot_version += 1
+        if not self._paused_for_adaptation:
+            self.snapshot_version += 1
         return self.snapshot()
 
     def generate(self, count: int) -> dict[str, Any]:
+        self._assert_not_adapting()
         _number(count, "count", integer=True)
         if count not in (1, 4):
             raise AdapterValidationError("count must be 1 or 4")
@@ -260,6 +265,7 @@ class SchedulerBackend:
             raise
 
     def set_policy(self, policy_id: str, reason: str = "手動切換") -> dict[str, Any]:
+        self._assert_not_adapting()
         if policy_id not in INITIAL_SKILLS:
             raise AdapterValidationError("policy must be a verified Skill")
         if policy_id == self.policy_id:
@@ -271,7 +277,8 @@ class SchedulerBackend:
         self._add_event("policy_changed", policy_id=policy_id, message=reason)
         self._settle_current_time()
         self._record_series()
-        self.snapshot_version += 1
+        if not self._paused_for_adaptation:
+            self.snapshot_version += 1
         return self.snapshot()
 
     def pause_for_adaptation(self) -> dict[str, Any]:
@@ -288,10 +295,7 @@ class SchedulerBackend:
         dt = float(_number(dt, "dt"))
         if dt < 0:
             raise AdapterValidationError("dt must be non-negative")
-        if self._paused_for_adaptation:
-            raise AdapterOperationError(
-                "simulation is paused for adaptation", state_uncertain=False
-            )
+        self._assert_not_adapting()
         target = round(self.time + dt, 10)
         while self.time < target:
             self._settle_current_time()
@@ -303,11 +307,26 @@ class SchedulerBackend:
                 job.arrival for job in self.jobs.values() if job.status == "scheduled"
             )
             next_times.extend(job.deadline for job in self.jobs.values() if job.status == "pending")
+            next_boundary = (math.floor(self.time / 5.0) + 1) * 5.0
+            if next_boundary <= target:
+                next_times.append(next_boundary)
             next_time = min(value for value in next_times if value > self.time)
             self.time = round(min(next_time, target), 10)
+            prior_boundary = round(self.time - 5.0, 10)
+            self._settle_current_time()
+            if math.isclose(self.time % 5.0, 0.0, abs_tol=EPSILON) and self.time > 0:
+                expired = [
+                    event
+                    for event in self.events
+                    if event["type"] == "expired" and prior_boundary < event["time"] <= self.time
+                ]
+                if expired and not self._evaluation_replay:
+                    self._begin_existing_skill_adaptation(prior_boundary, self.time, expired)
+                    break
         self._settle_current_time()
         self._record_series()
-        self.snapshot_version += 1
+        if not self._paused_for_adaptation:
+            self.snapshot_version += 1
         return self.snapshot()
 
     def snapshot(self) -> dict[str, Any]:
@@ -347,12 +366,14 @@ class SchedulerBackend:
                 "segments": [segment.as_dict(self.time) for segment in self.segments],
                 "events": self.events,
                 "series": self.series,
-                "adaptation": {
+                "adaptation": self._adaptation
+                or {
                     "stage": "idle",
-                    "message": "SP-01 未啟用 adaptation",
+                    "message": "尚未觸發 adaptation",
                     "adaptation_id": None,
                     "candidate_id": None,
                     "workload_window": None,
+                    "context_id": None,
                 },
                 "capacity": {
                     "total": len(self.jobs),
@@ -382,6 +403,132 @@ class SchedulerBackend:
                 }
                 for skill_id in INITIAL_SKILLS
             ]
+        )
+
+    def clone_for_evaluation(self, context_id: str) -> SchedulerBackend:
+        """Return an isolated nonzero-state copy for built-in policy evaluation."""
+
+        expected_context_id = (
+            self._adaptation["context_id"]
+            if self._adaptation is not None
+            else f"{self.run_id}:{self.snapshot_version}"
+        )
+        if context_id != expected_context_id:
+            raise AdapterValidationError("context_id does not match the current checkpoint")
+        clone = object.__new__(SchedulerBackend)
+        clone._seed = self._seed
+        clone._initial_jobs = copy.deepcopy(self._initial_jobs)
+        clone._rng = random.Random()
+        clone._rng.setstate(self._rng.getstate())
+        clone.run_id = self.run_id
+        clone.snapshot_version = self.snapshot_version
+        clone.time = self.time
+        clone.policy_id = self.policy_id
+        clone.previous_policy_id = self.previous_policy_id
+        clone.policy_reason = self.policy_reason
+        clone.jobs = copy.deepcopy(self.jobs)
+        clone.events = copy.deepcopy(self.events)
+        clone.series = copy.deepcopy(self.series)
+        clone.segments = copy.deepcopy(self.segments)
+        clone._paused_for_adaptation = False
+        clone._evaluation_replay = True
+        clone._adaptation = copy.deepcopy(self._adaptation)
+        clone._uses = copy.deepcopy(self._uses)
+        clone._last_applied = copy.deepcopy(self._last_applied)
+        return clone
+
+    def adaptation_trigger(self) -> dict[str, Any] | None:
+        """Return the immutable trigger recorded at the pause checkpoint."""
+        if self._adaptation is None:
+            return None
+        return copy.deepcopy(
+            {
+                "triggered": True,
+                "reason": self._adaptation["reason"],
+                "run_id": self.run_id,
+                "workload_window": self._adaptation["workload_window"],
+                "adaptation_id": self._adaptation["adaptation_id"],
+            }
+        )
+
+    def record_existing_evaluation(
+        self, context_id: str, outcome: str, passing_skill_ids: tuple[str, ...] = ()
+    ) -> dict[str, Any]:
+        if self._adaptation is None or context_id != self._adaptation["context_id"]:
+            raise AdapterValidationError("evaluation context does not match the active adaptation")
+        if outcome not in {"pass", "all_failed", "incomplete"}:
+            raise AdapterValidationError("unknown existing-skill evaluation outcome")
+        stages = {
+            "pass": ("existing_evaluation_passed", "既有技能比較通過；等待後續決策"),
+            "all_failed": ("existing_all_failed", "既有技能完整失敗；保持暫停"),
+            "incomplete": (
+                "existing_evaluation_incomplete",
+                "既有技能評估不完整；保持暫停，可安全重試",
+            ),
+        }
+        self._adaptation["stage"], self._adaptation["message"] = stages[outcome]
+        self._adaptation["evaluation_outcome"] = outcome
+        self._adaptation["passing_skill_ids"] = list(passing_skill_ids)
+        self.snapshot_version += 1
+        return self.snapshot()
+
+    def activate_existing_skill(
+        self, context_id: str, skill_id: str, reason: str
+    ) -> dict[str, Any]:
+        """Apply a verified replay winner while the adaptation checkpoint is active."""
+        if self._adaptation is None or context_id != self._adaptation["context_id"]:
+            raise AdapterValidationError("activation context does not match the active adaptation")
+        if skill_id not in INITIAL_SKILLS:
+            raise AdapterValidationError("activation requires a verified Skill")
+        if skill_id not in self._adaptation.get("passing_skill_ids", []):
+            raise AdapterValidationError("activation requires a gate-passing Skill")
+        if skill_id != self.policy_id:
+            self.previous_policy_id = self.policy_id
+            self.policy_id = skill_id
+            self.policy_reason = reason
+            self._close_segment()
+            self._add_event("policy_activated", policy_id=skill_id, message=reason)
+        self._adaptation.update(
+            {
+                "stage": "existing_skill_reused",
+                "message": f"已採用既有技能 {POLICY_NAMES[skill_id]}，恢復播放",
+                "candidate_id": None,
+                "selected_skill_id": skill_id,
+                "evaluation_outcome": "pass",
+                "selection_reason": reason,
+            }
+        )
+        self._paused_for_adaptation = False
+        self.snapshot_version += 1
+        return self.snapshot()
+
+    def _assert_not_adapting(self) -> None:
+        if self._paused_for_adaptation:
+            raise AdapterOperationError(
+                "simulation is paused for adaptation", state_uncertain=False
+            )
+
+    def _begin_existing_skill_adaptation(
+        self, start: float, end: float, expired_events: list[dict[str, Any]]
+    ) -> None:
+        window = {"id": f"window-{start:g}-{end:g}", "start": start, "end": end}
+        self._paused_for_adaptation = True
+        # The version becomes part of the context after this atomic pause checkpoint.
+        self.snapshot_version += 1
+        context_id = f"{self.run_id}:{self.snapshot_version}"
+        self._adaptation = {
+            "stage": "evaluating_existing",
+            "message": "偵測到新逾期訂單，正在比較既有技能",
+            "reason": "workload window contains newly expired jobs",
+            "adaptation_id": f"{self.run_id}:{window['id']}",
+            "candidate_id": None,
+            "workload_window": window,
+            "context_id": context_id,
+            "expired_job_ids": [event["job_id"] for event in expired_events],
+        }
+        self._add_event(
+            "adaptation_triggered",
+            message="workload window contains newly expired jobs",
         )
 
     def _running_job(self) -> Job | None:

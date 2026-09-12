@@ -162,6 +162,34 @@ def test_snapshot_adaptation_includes_neutral_workload_window(backend_factory):
     assert backend_factory().snapshot()["adaptation"]["workload_window"] is None
 
 
+def test_expiry_trigger_stops_at_first_five_second_boundary_and_rejects_mutations(backend_factory):
+    backend = backend_factory(initial_jobs=[job("A", 0, 10, 1, 2), job("B", 0, 1, 1, 20)])
+    snapshot = backend.advance(12)
+    adaptation = snapshot["adaptation"]
+    assert snapshot["time"] == 5
+    assert adaptation["workload_window"] == {"id": "window-0-5", "start": 0.0, "end": 5.0}
+    assert adaptation["context_id"] == f"{snapshot['run_id']}:{snapshot['snapshot_version']}"
+    for operation in (
+        lambda: backend.advance(1),
+        lambda: backend.inject([job("C", 5, 1, 1, 10)]),
+        lambda: backend.generate(1),
+        lambda: backend.set_policy("sjf"),
+    ):
+        with pytest.raises(AdapterOperationError):
+            operation()
+    assert backend.snapshot()["time"] == 5
+
+
+def test_reset_invalidates_old_adaptation_context(backend_factory):
+    backend = backend_factory(initial_jobs=[job("A", 0, 10, 1, 2)])
+    context_id = backend.advance(5)["adaptation"]["context_id"]
+    backend.reset()
+    with pytest.raises(ValueError):
+        backend.clone_for_evaluation(context_id)
+    with pytest.raises(ValueError):
+        backend.record_existing_evaluation(context_id, "incomplete")
+
+
 def test_generate_skips_existing_job_ids(backend_factory):
     backend = backend_factory(initial_jobs=[job("J2", 0, 1, 1, 5)])
     snapshot = backend.generate(1)

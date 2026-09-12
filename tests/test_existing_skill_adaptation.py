@@ -4,6 +4,9 @@ from existing_skill_adaptation import (
     EVALUATION_RESULT_FIELDS,
     ExistingSkillAdaptationValidationError,
     ExistingSkillComparisonAssembler,
+    ExistingSkillComparisonOutcome,
+    classify_existing_skill_comparison,
+    evaluate_existing_skill_gate,
 )
 
 
@@ -20,7 +23,7 @@ def trigger(**overrides):
 
 
 def baseline(**overrides):
-    value = {"completed": 3, "expired": 2, "p95_latency": None}
+    value = {"completed": 3, "expired": 2, "p95_latency": 10.0}
     value.update(overrides)
     return value
 
@@ -30,12 +33,13 @@ def evaluation(skill_id, **overrides):
         "subject_id": skill_id,
         "subject_kind": "skill",
         "baseline_metrics": baseline(),
-        "evaluated_metrics": {"completed": 4, "expired": 1, "p95_latency": None},
+        "evaluated_metrics": {"completed": 4, "expired": 1, "p95_latency": 9.0},
         "evaluation_window": {"id": "window-1", "start": 0, "end": 10},
-        "gate_passed": False,
+        "gate_passed": True,
         "regressions": [],
-        "contract_validation": {"valid": True},
-        "sandbox_status": "completed",
+        "contract_validation": True,
+        "sandbox_status": "passed",
+        "outcome": "passed",
         "failure_reason": None,
         "critic_feedback": None,
     }
@@ -49,6 +53,8 @@ def assemble(**overrides):
         "baseline": baseline(),
         "expected_skill_ids": ["fifo", "edf"],
         "evaluations": [evaluation("fifo"), evaluation("edf")],
+        "context_id": "context-1",
+        "skill_code_versions": {"fifo": "fifo_key", "edf": "edf_key"},
     }
     values.update(overrides)
     return ExistingSkillComparisonAssembler().assemble(**values)
@@ -172,7 +178,10 @@ def test_missing_baseline_and_result_baseline_mismatch_are_rejected():
 
     with pytest.raises(ExistingSkillAdaptationValidationError) as mismatch:
         assemble(
-            evaluations=[evaluation("fifo"), evaluation("edf", baseline_metrics={"expired": 0})]
+            evaluations=[
+                evaluation("fifo"),
+                evaluation("edf", baseline_metrics=baseline(expired=0)),
+            ]
         )
     assert mismatch.value.reason == "baseline_mismatch"
 
@@ -245,8 +254,22 @@ def test_input_mutation_after_assembly_does_not_change_result():
 @pytest.mark.parametrize(
     "changes",
     [
-        {"evaluated_metrics": {"nested": {"not_json"}}},
-        {"evaluated_metrics": {"bad": {"set_value"}}},
+        {
+            "evaluated_metrics": {
+                "completed": 4,
+                "expired": 1,
+                "p95_latency": 9.0,
+                "nested": {"not_json"},
+            }
+        },
+        {
+            "evaluated_metrics": {
+                "completed": 4,
+                "expired": 1,
+                "p95_latency": 9.0,
+                "bad": {"set_value"},
+            }
+        },
     ],
 )
 def test_non_json_nested_values_are_rejected(changes):
@@ -256,7 +279,7 @@ def test_non_json_nested_values_are_rejected(changes):
 
 
 def test_non_finite_json_values_are_rejected():
-    supplied_baseline = {"p95_latency": float("inf")}
+    supplied_baseline = {"completed": 3, "expired": 2, "p95_latency": float("inf")}
     with pytest.raises(ExistingSkillAdaptationValidationError) as error:
         assemble(
             baseline=supplied_baseline,
@@ -265,17 +288,121 @@ def test_non_finite_json_values_are_rejected():
                 evaluation("edf", baseline_metrics=supplied_baseline),
             ],
         )
-    assert error.value.reason == "invalid_json_value"
+    assert error.value.reason == "invalid_metric"
 
 
-def test_gate_values_are_preserved_not_interpreted():
+@pytest.mark.parametrize(
+    ("evaluated", "expected"),
+    [
+        ({"completed": 4, "expired": 1, "p95_latency": 9.0}, True),
+        ({"completed": 3, "expired": 2, "p95_latency": 9.0}, False),
+        ({"completed": 4, "expired": 1, "p95_latency": 11.0}, False),
+        ({"completed": 4, "expired": 1, "p95_latency": None}, False),
+    ],
+)
+def test_shared_gate_requires_strict_improvement_without_regression(evaluated, expected):
+    assert evaluate_existing_skill_gate(baseline(), evaluated, True, "passed") is expected
+
+
+def test_gate_requires_contract_and_completed_sandbox():
+    assert not evaluate_existing_skill_gate(
+        baseline(), {"completed": 4, "expired": 1, "p95_latency": 9.0}, False, "passed"
+    )
+    assert not evaluate_existing_skill_gate(
+        baseline(), {"completed": 4, "expired": 1, "p95_latency": 9.0}, True, "failed"
+    )
+
+
+def test_gate_mismatch_and_invalid_outcome_are_rejected_before_classification():
+    with pytest.raises(ExistingSkillAdaptationValidationError) as gate_error:
+        assemble(evaluations=[evaluation("fifo", gate_passed=False), evaluation("edf")])
+    assert gate_error.value.reason == "gate_mismatch"
+
+    with pytest.raises(ExistingSkillAdaptationValidationError) as outcome_error:
+        assemble(evaluations=[evaluation("fifo", outcome="failed"), evaluation("edf")])
+    assert outcome_error.value.reason == "outcome_mismatch"
+
+
+def test_complete_negative_results_are_all_failed_even_when_p95_is_not_comparable():
     result = assemble(
         evaluations=[
-            evaluation("fifo", gate_passed=False, sandbox_status="unknown"),
-            evaluation("edf", gate_passed=True, sandbox_status="failed"),
+            evaluation(
+                "fifo",
+                evaluated_metrics={"completed": 4, "expired": 1, "p95_latency": None},
+                gate_passed=False,
+                outcome="failed",
+                failure_reason="P95 is not comparable",
+            ),
+            evaluation(
+                "edf",
+                evaluated_metrics={"completed": 3, "expired": 2, "p95_latency": 9.0},
+                gate_passed=False,
+                outcome="failed",
+                failure_reason="no improvement",
+            ),
         ]
     )
 
-    assert [item["gate_passed"] for item in result.evaluations] == [False, True]
-    assert [item["sandbox_status"] for item in result.evaluations] == ["unknown", "failed"]
-    assert not hasattr(result, "all_skills_failed")
+    assert classify_existing_skill_comparison(result) is ExistingSkillComparisonOutcome.ALL_FAILED
+
+
+def test_any_pass_prevents_all_failed():
+    result = assemble(
+        evaluations=[
+            evaluation("fifo"),
+            evaluation(
+                "edf",
+                evaluated_metrics={"completed": 3, "expired": 2, "p95_latency": 9.0},
+                gate_passed=False,
+                outcome="failed",
+                failure_reason="no improvement",
+            ),
+        ]
+    )
+
+    assert classify_existing_skill_comparison(result) is ExistingSkillComparisonOutcome.PASS
+
+
+def test_incomplete_result_never_becomes_all_failed():
+    result = assemble(
+        evaluations=[
+            evaluation(
+                "fifo",
+                evaluated_metrics={"completed": 0, "expired": 0, "p95_latency": None},
+                gate_passed=False,
+                sandbox_status="incomplete",
+                outcome="incomplete",
+            ),
+            evaluation(
+                "edf",
+                evaluated_metrics={"completed": 3, "expired": 2, "p95_latency": 9.0},
+                gate_passed=False,
+                outcome="failed",
+                failure_reason="no improvement",
+            ),
+        ]
+    )
+
+    assert classify_existing_skill_comparison(result) is ExistingSkillComparisonOutcome.INCOMPLETE
+
+
+def test_complete_failure_requires_a_reason_before_it_can_be_all_failed():
+    with pytest.raises(ExistingSkillAdaptationValidationError) as error:
+        assemble(
+            evaluations=[
+                evaluation(
+                    "fifo",
+                    evaluated_metrics={"completed": 3, "expired": 2, "p95_latency": 9.0},
+                    gate_passed=False,
+                    outcome="failed",
+                ),
+                evaluation(
+                    "edf",
+                    evaluated_metrics={"completed": 3, "expired": 2, "p95_latency": 9.0},
+                    gate_passed=False,
+                    outcome="failed",
+                    failure_reason="no improvement",
+                ),
+            ]
+        )
+    assert error.value.reason == "missing_failure_reason"

@@ -8,6 +8,16 @@ from app import (
 from scheduler import AdapterOperationError
 
 
+def _job(job_id, arrival, processing_time, priority, deadline):
+    return {
+        "id": job_id,
+        "arrival": arrival,
+        "processing_time": processing_time,
+        "priority": priority,
+        "deadline": deadline,
+    }
+
+
 def test_scheduler_events_are_serialized_and_timer_starts_paused(backend_factory):
     demo = build_app(SessionController(backend_factory(), "本機備援", "demo"))
     config = demo.get_config_file()
@@ -32,6 +42,45 @@ def test_single_step_stops_playback_and_stale_views_are_rejected(backend_factory
     assert stepped["playing"] is False
     assert controller.accepts_view(stepped)
     assert not controller.accepts_view(first)
+
+
+def test_controller_replays_existing_skills_and_keeps_triggered_run_paused(backend_factory):
+    backend = backend_factory(initial_jobs=[_job("A", 0, 10, 1, 2), _job("B", 0, 1, 2, 20)])
+    controller = SessionController(backend, "local", "demo")
+    controller.toggle_play(True)
+    result = controller.advance(8)
+    adaptation = result["snapshot"]["adaptation"]
+    assert result["snapshot"]["time"] == 5
+    assert adaptation["stage"] in {
+        "existing_evaluation_passed",
+        "existing_all_failed",
+        "existing_evaluation_incomplete",
+    }
+    assert result["playing"] is False
+
+
+def test_controller_reuses_real_replay_winner_and_resumes(backend_factory):
+    jobs = [
+        _job("J0", 3, 7, 1, 14),
+        _job("J1", 2, 3, 2, 14),
+        _job("J2", 3, 2, 1, 6),
+        _job("J3", 1, 4, 1, 11),
+        _job("J4", 0, 2, 4, 10),
+        _job("J5", 4, 5, 4, 16),
+        _job("J6", 4, 4, 4, 9),
+        _job("J7", 2, 4, 3, 15),
+        _job("J8", 1, 7, 2, 13),
+        _job("J9", 0, 2, 7, 2),
+        _job("J10", 4, 8, 7, 15),
+    ]
+    controller = SessionController(backend_factory(seed=0, initial_jobs=jobs), "local", "demo")
+    controller.toggle_play(True)
+    result = controller.advance(5)
+    assert result["snapshot"]["adaptation"]["stage"] == "existing_skill_reused"
+    assert result["snapshot"]["adaptation"]["candidate_id"] is None
+    assert result["snapshot"]["adaptation"]["selected_skill_id"] == "sjf"
+    assert result["snapshot"]["policy"]["id"] == "sjf"
+    assert result["playing"] is True
 
 
 def test_metrics_render_includes_trends_segments_events_and_policy_reference(backend_factory):

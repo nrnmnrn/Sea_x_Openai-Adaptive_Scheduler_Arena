@@ -9,6 +9,14 @@ import importlib
 from collections.abc import Callable
 from typing import Any
 
+from existing_skill_adaptation import (
+    ExistingSkillComparisonOutcome,
+    classify_existing_skill_comparison,
+)
+from existing_skill_evaluator import (
+    ExistingSkillEvaluationIncompleteError,
+    evaluate_builtin_existing_skills,
+)
 from scheduler import POLICY_NAMES, create_backend
 
 
@@ -22,6 +30,8 @@ class SessionController:
         self.playing = False
         self.speed = 1.0
         self._last_accepted_envelope: dict[str, Any] | None = None
+        self._evaluation_key: tuple[int, str, str, str] | None = None
+        self._existing_comparison: dict[str, Any] | None = None
 
     def envelope(
         self, snapshot: dict[str, Any] | None = None, error: str | None = None
@@ -37,6 +47,7 @@ class SessionController:
             "playing": self.playing,
             "speed": self.speed,
             "error": error,
+            "existing_comparison": copy.deepcopy(self._existing_comparison),
         }
         self._last_accepted_envelope = copy.deepcopy(envelope)
         return envelope
@@ -66,10 +77,107 @@ class SessionController:
     def reset(self) -> dict[str, Any]:
         self.playing = False
         self.generation += 1
+        self._evaluation_key = None
+        self._existing_comparison = None
         return self.call(lambda: self.backend.reset())
 
     def advance(self, dt: float) -> dict[str, Any]:
-        return self.call(lambda: self.backend.advance(dt))
+        envelope = self.call(lambda: self.backend.advance(dt))
+        if envelope.get("error") is None:
+            self._evaluate_active_adaptation()
+            if self.backend.snapshot().get("adaptation", {}).get("stage") in {
+                "evaluating_existing",
+                "existing_all_failed",
+                "existing_evaluation_incomplete",
+            }:
+                self.playing = False
+            envelope = self.envelope()
+        return envelope
+
+    def retry_existing_evaluation(self) -> dict[str, Any]:
+        snapshot = self.backend.snapshot()
+        if snapshot.get("adaptation", {}).get("stage") != "existing_evaluation_incomplete":
+            return self.envelope(error="目前沒有可安全重試的既有技能評估")
+        self._evaluation_key = None
+        self._evaluate_active_adaptation()
+        return self.envelope()
+
+    def _evaluate_active_adaptation(self) -> None:
+        snapshot = self.backend.snapshot()
+        adaptation = snapshot.get("adaptation", {})
+        if adaptation.get("stage") not in {
+            "evaluating_existing",
+            "existing_evaluation_incomplete",
+        }:
+            return
+        trigger = self.backend.adaptation_trigger()
+        context_id = adaptation.get("context_id")
+        evaluation_key = (
+            self.generation,
+            snapshot.get("run_id", ""),
+            adaptation.get("adaptation_id", ""),
+            context_id,
+        )
+        if self._evaluation_key == evaluation_key:
+            return
+        if not trigger or not isinstance(context_id, str):
+            self.backend.record_existing_evaluation(context_id or "", "incomplete")
+            self._evaluation_key = evaluation_key
+            return
+        try:
+            comparison = evaluate_builtin_existing_skills(self.backend, trigger, context_id)
+            self._existing_comparison = {
+                "baseline": dict(comparison.baseline),
+                "sandbox_status": "passed",
+                "evaluations": [
+                    {
+                        "skill_id": item["subject_id"],
+                        "metrics": dict(item["evaluated_metrics"]),
+                        "gate_passed": item["gate_passed"],
+                    }
+                    for item in comparison.evaluations
+                ],
+            }
+            outcome = classify_existing_skill_comparison(comparison)
+            recorded = {
+                ExistingSkillComparisonOutcome.PASS: "pass",
+                ExistingSkillComparisonOutcome.ALL_FAILED: "all_failed",
+                ExistingSkillComparisonOutcome.INCOMPLETE: "incomplete",
+            }[outcome]
+        except (ExistingSkillEvaluationIncompleteError, ValueError, RuntimeError):
+            recorded = "incomplete"
+        passing_ids = (
+            tuple(
+                item["subject_id"] for item in comparison.evaluations if item["gate_passed"] is True
+            )
+            if recorded == "pass"
+            else ()
+        )
+        self.backend.record_existing_evaluation(context_id, recorded, passing_ids)
+        if recorded == "pass":
+            selected, reason = self._select_existing_skill(comparison)
+            self.backend.activate_existing_skill(context_id, selected, reason)
+            self.playing = True
+        self._evaluation_key = evaluation_key
+
+    def _select_existing_skill(self, comparison: Any) -> tuple[str, str]:
+        """Select only a gate-passing verified replay result using the PRD order."""
+        passing = [item for item in comparison.evaluations if item["gate_passed"] is True]
+        current = self.backend.snapshot()["policy"]["id"]
+        current_passing = next((item for item in passing if item["subject_id"] == current), None)
+        if current_passing is not None:
+            return current, "目前策略已通過既有技能比較，維持不切換"
+        selected = min(
+            passing,
+            key=lambda item: (
+                item["evaluated_metrics"]["expired"],
+                -item["evaluated_metrics"]["completed"],
+                item["evaluated_metrics"]["p95_latency"],
+                0 if item["subject_id"] == current else 1,
+                item["subject_id"],
+            ),
+        )
+        return selected["subject_id"], "既有技能比較：逾期、完成、P95、目前策略、技能 ID 排序"
 
     def step(self) -> dict[str, Any]:
         self.playing = False
@@ -87,7 +195,11 @@ class SessionController:
         def operation() -> dict[str, Any]:
             snapshot = self.backend.snapshot()
             adaptation = snapshot.get("adaptation", {})
-            if playing and adaptation.get("stage", "idle") != "idle":
+            if playing and adaptation.get("stage") in {
+                "evaluating_existing",
+                "existing_all_failed",
+                "existing_evaluation_incomplete",
+            }:
                 self.playing = False
                 return snapshot
             self.playing = playing
@@ -317,11 +429,40 @@ def render_metrics(envelope: dict[str, Any]) -> str:
         f"- {skill['name']}：使用 {skill['uses']} 次；來源：{skill['source']}"
         for skill in envelope["skills"]
     )
+    adaptation = snapshot.get("adaptation", {})
+    adaptation_text = (
+        f"stage `{adaptation.get('stage')}`; selected Skill "
+        f"`{adaptation.get('selected_skill_id') or '—'}`; "
+        f"reason: {adaptation.get('selection_reason') or adaptation.get('message') or '—'}"
+    )
+    comparison = envelope.get("existing_comparison")
+    comparison_text = "尚無完成的既有策略比較。"
+    if comparison:
+        rows = "\n".join(
+            f"| {item['skill_id']} | {item['metrics']['completed']} | {item['metrics']['expired']} | "
+            f"{item['metrics']['p95_latency']} | {item['gate_passed']} |"
+            for item in comparison["evaluations"]
+        )
+        baseline = comparison["baseline"]
+        comparison_text = (
+            f"Sandbox: `{comparison['sandbox_status']}`; baseline: completed "
+            f"`{baseline['completed']}`, expired `{baseline['expired']}`, P95 `{baseline['p95_latency']}`.\n\n"
+            "| Skill | completed | expired | P95 | gate |\n|---|---:|---:|---:|---|\n"
+            f"{rows}"
+        )
     return f"""### Metrics & Code
 
 Live metrics: completed `{metrics["completed"]}`, expired `{metrics["expired"]}`, throughput `{metrics["throughput"] or "—"}`, P95 latency `{metrics["p95_latency"] or "—"}`
 
 Snapshot: `{snapshot["run_id"]}` / revision `{envelope["revision"]}` / time `{snapshot["time"]:.1f}`
+
+### Existing-policy adaptation evidence
+
+{adaptation_text}
+
+### Built-in replay comparison
+
+{comparison_text}
 
 ### Series trend (latest 20 points)
 
@@ -411,7 +552,7 @@ def build_app(
         controller_state = gr.State(None)
         view_state = gr.State(None)
         gr.Markdown(
-            f"# Adaptive Scheduler Arena\n資料來源：{controller.source}　`MOCK 示範`　模式：{controller.mode}"
+            f"# Adaptive Scheduler Arena\n資料來源：{controller.source}　`既有策略自動適應展示`　模式：{controller.mode}"
         )
         with gr.Tab("Scheduling Arena"):
             with gr.Row():
@@ -430,12 +571,14 @@ def build_app(
                     visible=controller.mode == "developer",
                 )
                 apply = gr.Button("套用技能", visible=controller.mode == "developer")
-            source = gr.Markdown(f"資料來源：{controller.source}；`MOCK 示範`；目前狀態：paused")
+            source = gr.Markdown(
+                f"資料來源：{controller.source}；`內建策略真實重放評估`；目前狀態：paused"
+            )
             arena = gr.HTML(render_arena(initial))
             status = gr.JSON(initial)
 
             def update(envelope):
-                source_text = f"資料來源：{controller.source}；`MOCK 示範`；狀態：{'playing' if envelope['playing'] else 'paused'}"
+                source_text = f"資料來源：{controller.source}；`內建策略真實重放評估`；狀態：{'playing' if envelope['playing'] else 'paused'}"
                 return (
                     render_arena(envelope),
                     envelope,
