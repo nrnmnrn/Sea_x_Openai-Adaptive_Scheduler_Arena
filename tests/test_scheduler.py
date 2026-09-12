@@ -129,6 +129,23 @@ def test_reset_reproducibility_and_json_serialization():
     ]
 
 
+def test_reset_changes_run_identity_without_changing_seeded_workload():
+    backend = create_backend()
+    before = backend.snapshot()
+    after = backend.reset()
+    assert after["run_id"] != before["run_id"]
+    assert after["jobs"] == before["jobs"]
+
+
+def test_expired_job_is_attributed_to_active_segment():
+    backend = create_backend(initial_jobs=[job("A", 0, 3, 1, 2)])
+    snapshot = backend.advance(2)
+    expired = next(item for item in snapshot["jobs"] if item["id"] == "A")
+    assert expired["status"] == "expired"
+    assert expired["dispatched_policy_id"] is None
+    assert expired["segment_id"] == snapshot["segments"][-1]["id"]
+
+
 def test_pause_seam_freezes_simulation():
     backend = create_backend(initial_jobs=[job("A", 0, 2, 1, 5)])
     before = backend.snapshot()

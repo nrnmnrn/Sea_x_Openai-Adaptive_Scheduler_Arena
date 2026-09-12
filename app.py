@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import importlib
 from collections.abc import Callable
 from typing import Any
@@ -51,6 +52,10 @@ class SessionController:
     def advance(self, dt: float) -> dict[str, Any]:
         return self.call(lambda: self.backend.advance(dt))
 
+    def step(self) -> dict[str, Any]:
+        self.playing = False
+        return self.advance(1)
+
     def inject(self, count: int) -> dict[str, Any]:
         return self.call(lambda: self.backend.generate(count))
 
@@ -66,6 +71,14 @@ class SessionController:
     def set_speed(self, speed: float) -> dict[str, Any]:
         self.speed = speed
         return self.envelope()
+
+    def accepts_view(self, envelope: dict[str, Any]) -> bool:
+        snapshot = envelope.get("snapshot", {})
+        return (
+            envelope.get("session_generation") == self.generation
+            and envelope.get("revision") == self.revision
+            and snapshot.get("run_id") == self.backend.snapshot().get("run_id")
+        )
 
 
 def load_backend(backend_name: str, factory_path: str | None) -> tuple[Any, str]:
@@ -195,7 +208,7 @@ def render_arena(envelope: dict[str, Any]) -> str:
     """
 
 
-def render_metrics(envelope: dict[str, Any]) -> str:
+def _render_metrics_legacy(envelope: dict[str, Any]) -> str:
     snapshot = envelope["snapshot"]
     metrics = snapshot["metrics"]
     skills = envelope["skills"]
@@ -221,6 +234,100 @@ def render_metrics(envelope: dict[str, Any]) -> str:
 """
 
 
+def render_metrics(envelope: dict[str, Any]) -> str:
+    snapshot = envelope["snapshot"]
+    metrics = snapshot["metrics"]
+    policy = snapshot["policy"]
+    previous_code = policy.get("previous_code") or ""
+    policy_diff = (
+        "".join(
+            difflib.unified_diff(
+                previous_code.splitlines(keepends=True),
+                policy["code"].splitlines(keepends=True),
+                fromfile="previous_policy.py",
+                tofile="current_policy.py",
+            )
+        )
+        or "（尚未切換 Policy，沒有差異）"
+    )
+    series_rows = (
+        "\n".join(
+            f"| {point['time']:.1f} | {point['completed']} | {point['expired']} | "
+            f"{point['throughput'] if point['throughput'] is not None else '—'} | "
+            f"{point['p95_latency'] if point['p95_latency'] is not None else '—'} |"
+            for point in snapshot["series"][-20:]
+        )
+        or "| — | — | — | — | — |"
+    )
+    segment_rows = (
+        "\n".join(
+            f"| {segment['id']} | {segment['policy_id']} | {segment['start']:.1f} | "
+            f"{segment['end']:.1f} | {segment['metrics']['completed']} | "
+            f"{segment['metrics']['expired']} |"
+            for segment in snapshot["segments"]
+        )
+        or "| — | — | — | — | — | — |"
+    )
+    event_rows = (
+        "\n".join(
+            f"| {event['seq']} | {event['time']:.1f} | {event['type']} | "
+            f"{event.get('job_id') or '—'} | {event.get('policy_id') or '—'} |"
+            for event in snapshot["events"][-60:]
+        )
+        or "| — | — | — | — | — |"
+    )
+    skill_text = "\n".join(
+        f"- {skill['name']}嚗蝙??{skill['uses']} 甈∴?靘? {skill['source']}"
+        for skill in envelope["skills"]
+    )
+    return f"""### Metrics & Code
+
+Live metrics: completed `{metrics["completed"]}`, expired `{metrics["expired"]}`, throughput `{metrics["throughput"] or "—"}`, P95 latency `{metrics["p95_latency"] or "—"}`
+
+Snapshot: `{snapshot["run_id"]}` / revision `{envelope["revision"]}` / time `{snapshot["time"]:.1f}`
+
+### Series trend (latest 20 points)
+
+| time | completed | expired | throughput | P95 latency |
+|---:|---:|---:|---:|---:|
+{series_rows}
+
+### Segment trend and Policy attribution
+
+| segment | Policy | start | end | completed | expired |
+|---|---|---:|---:|---:|---:|
+{segment_rows}
+
+### Recent events (latest 60)
+
+| seq | time | type | Job | Policy |
+|---:|---:|---|---|---|
+{event_rows}
+
+### Current Policy code: {policy["name"]}
+
+```python
+{policy["code"]}
+```
+
+### Previous Policy code (diff reference)
+
+```python
+{policy.get("previous_code") or "尚未切換 Policy"}
+```
+
+### Policy diff
+
+```diff
+{policy_diff}
+```
+
+### Skill Library
+
+{skill_text}
+"""
+
+
 APP_CSS = """
 body { background:#171719 !important; }
 .gradio-container { max-width:1320px !important; padding-top:28px !important; color:#e8e9ec; }
@@ -235,11 +342,24 @@ body { background:#171719 !important; }
 """
 
 
-def build_app(controller: SessionController):
+def build_app(
+    controller: SessionController | None = None,
+    controller_factory: Callable[[], SessionController] | None = None,
+):
     import gradio as gr
 
+    if controller is None and controller_factory is None:
+        raise ValueError("controller or controller_factory is required")
+    if controller is None:
+        controller = controller_factory()
+    if controller_factory is None:
+        controller_factory = lambda: SessionController(
+            create_backend(), controller.source, controller.mode
+        )
     initial = controller.envelope()
     with gr.Blocks(title="Adaptive Scheduler Arena") as demo:
+        controller_state = gr.State(None)
+        view_state = gr.State(None)
         gr.Markdown(
             f"# Adaptive Scheduler Arena\n資料來源：{controller.source}　`MOCK 示範`　模式：{controller.mode}"
         )
@@ -274,13 +394,31 @@ def build_app(controller: SessionController):
                     envelope["skills"],
                 )
 
-            def tick():
-                if controller.playing:
-                    return update(controller.advance(0.2 * controller.speed))
-                return update(controller.envelope())
+            def resolve_controller(current):
+                return current if current is not None else controller_factory()
 
-            def update_with_timer(envelope):
-                return (*update(envelope), gr.Timer(active=envelope["playing"]))
+            def run_operation(current, previous_view, operation):
+                active_controller = resolve_controller(current)
+                if previous_view is not None and not active_controller.accepts_view(previous_view):
+                    envelope = active_controller.envelope(error="已拒收過時的 session 回應")
+                else:
+                    envelope = operation(active_controller)
+                return (
+                    active_controller,
+                    envelope,
+                    *update(envelope),
+                    gr.Timer(active=envelope["playing"]),
+                )
+
+            def tick(current, previous_view):
+                active_controller = resolve_controller(current)
+                if previous_view is not None and not active_controller.accepts_view(previous_view):
+                    envelope = active_controller.envelope(error="已拒收過時的 session 回應")
+                elif active_controller.playing:
+                    envelope = active_controller.advance(0.2 * active_controller.speed)
+                else:
+                    envelope = active_controller.envelope()
+                return active_controller, envelope, *update(envelope)
 
             scheduler_event = {"concurrency_id": "scheduler", "concurrency_limit": 1}
             timer = gr.Timer(0.2, active=False)
@@ -289,52 +427,85 @@ def build_app(controller: SessionController):
         with gr.Tab("Skill Library"):
             library = gr.JSON(initial["skills"])
 
-        scheduler_outputs = [arena, status, source, metrics, library, timer]
+        scheduler_inputs = [controller_state, view_state]
+        scheduler_outputs = [
+            controller_state,
+            view_state,
+            arena,
+            status,
+            source,
+            metrics,
+            library,
+            timer,
+        ]
         play.click(
-            lambda: update_with_timer(controller.toggle_play(True)),
+            lambda current, previous: run_operation(
+                current, previous, lambda active: active.toggle_play(True)
+            ),
+            inputs=scheduler_inputs,
             outputs=scheduler_outputs,
             **scheduler_event,
         )
         pause.click(
-            lambda: update_with_timer(controller.toggle_play(False)),
+            lambda current, previous: run_operation(
+                current, previous, lambda active: active.toggle_play(False)
+            ),
+            inputs=scheduler_inputs,
             outputs=scheduler_outputs,
             **scheduler_event,
         )
         step.click(
-            lambda: update_with_timer(controller.advance(1)),
+            lambda current, previous: run_operation(
+                current, previous, lambda active: active.step()
+            ),
+            inputs=scheduler_inputs,
             outputs=scheduler_outputs,
             **scheduler_event,
         )
         reset.click(
-            lambda: update_with_timer(controller.reset()),
+            lambda current, previous: run_operation(
+                current, previous, lambda active: active.reset()
+            ),
+            inputs=scheduler_inputs,
             outputs=scheduler_outputs,
             **scheduler_event,
         )
         one.click(
-            lambda: update_with_timer(controller.inject(1)),
+            lambda current, previous: run_operation(
+                current, previous, lambda active: active.inject(1)
+            ),
+            inputs=scheduler_inputs,
             outputs=scheduler_outputs,
             **scheduler_event,
         )
         flash.click(
-            lambda: update_with_timer(controller.inject(4)),
+            lambda current, previous: run_operation(
+                current, previous, lambda active: active.inject(4)
+            ),
+            inputs=scheduler_inputs,
             outputs=scheduler_outputs,
             **scheduler_event,
         )
         speed.change(
-            lambda value: update_with_timer(controller.set_speed(float(value))),
-            inputs=speed,
+            lambda value, current, previous: run_operation(
+                current, previous, lambda active: active.set_speed(float(value))
+            ),
+            inputs=[speed, *scheduler_inputs],
             outputs=scheduler_outputs,
             **scheduler_event,
         )
         apply.click(
-            lambda value: update_with_timer(controller.set_policy(value)),
-            inputs=policy,
+            lambda value, current, previous: run_operation(
+                current, previous, lambda active: active.set_policy(value)
+            ),
+            inputs=[policy, *scheduler_inputs],
             outputs=scheduler_outputs,
             **scheduler_event,
         )
         timer.tick(
             tick,
-            outputs=[arena, status, source, metrics, library],
+            inputs=scheduler_inputs,
+            outputs=[controller_state, view_state, arena, status, source, metrics, library],
             trigger_mode="always_last",
             **scheduler_event,
         )

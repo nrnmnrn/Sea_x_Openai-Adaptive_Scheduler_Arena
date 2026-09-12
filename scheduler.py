@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import math
 import random
+import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -164,7 +165,7 @@ class SchedulerBackend:
     def _reset_state(self, seed: int, initial_jobs: list[dict[str, Any]] | None) -> None:
         self._validate_seed(seed)
         self._rng = random.Random(seed)
-        self.run_id = f"run-{seed}-{self._rng.getrandbits(32):08x}"
+        self.run_id = f"run-{seed}-{uuid.uuid4().hex[:12]}"
         self.snapshot_version = 1
         self.time = 0.0
         self.policy_id = "fifo"
@@ -399,7 +400,9 @@ class SchedulerBackend:
             if job.status == "pending" and self.time + EPSILON >= job.deadline:
                 job.status = "expired"
                 job.dropped_at = job.deadline
-                self._segment_for_expiry().expired += 1
+                segment = self._segment_for_expiry()
+                job.segment_id = segment.id
+                segment.expired += 1
                 self._add_event("expired", job_id=job.id, message="截止後丟棄")
         for job in self.jobs.values():
             if job.status == "scheduled" and job.arrival <= self.time + EPSILON:
