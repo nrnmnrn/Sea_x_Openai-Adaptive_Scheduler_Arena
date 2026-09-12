@@ -266,41 +266,78 @@ def build_app(controller: SessionController):
 
             def update(envelope):
                 source_text = f"資料來源：{controller.source}；`MOCK 示範`；狀態：{'playing' if envelope['playing'] else 'paused'}"
-                return render_arena(envelope), envelope, source_text
+                return (
+                    render_arena(envelope),
+                    envelope,
+                    source_text,
+                    render_metrics(envelope),
+                    envelope["skills"],
+                )
 
             def tick():
                 if controller.playing:
                     return update(controller.advance(0.2 * controller.speed))
                 return update(controller.envelope())
 
-            play.click(
-                lambda: update(controller.toggle_play(True)), outputs=[arena, status, source]
-            )
-            pause.click(
-                lambda: update(controller.toggle_play(False)), outputs=[arena, status, source]
-            )
-            step.click(lambda: update(controller.advance(1)), outputs=[arena, status, source])
-            reset.click(lambda: update(controller.reset()), outputs=[arena, status, source])
-            one.click(lambda: update(controller.inject(1)), outputs=[arena, status, source])
-            flash.click(lambda: update(controller.inject(4)), outputs=[arena, status, source])
-            speed.change(
-                lambda value: update(controller.set_speed(float(value))),
-                inputs=speed,
-                outputs=[arena, status, source],
-            )
-            apply.click(
-                lambda value: update(controller.set_policy(value)),
-                inputs=policy,
-                outputs=[arena, status, source],
-            )
-            timer = gr.Timer(0.2)
-            timer.tick(tick, outputs=[arena, status, source])
+            def update_with_timer(envelope):
+                return (*update(envelope), gr.Timer(active=envelope["playing"]))
+
+            scheduler_event = {"concurrency_id": "scheduler", "concurrency_limit": 1}
+            timer = gr.Timer(0.2, active=False)
         with gr.Tab("Metrics & Code"):
             metrics = gr.Markdown(render_metrics(initial))
-            status.change(lambda value: render_metrics(value), inputs=status, outputs=metrics)
         with gr.Tab("Skill Library"):
             library = gr.JSON(initial["skills"])
-            status.change(lambda value: value["skills"], inputs=status, outputs=library)
+
+        scheduler_outputs = [arena, status, source, metrics, library, timer]
+        play.click(
+            lambda: update_with_timer(controller.toggle_play(True)),
+            outputs=scheduler_outputs,
+            **scheduler_event,
+        )
+        pause.click(
+            lambda: update_with_timer(controller.toggle_play(False)),
+            outputs=scheduler_outputs,
+            **scheduler_event,
+        )
+        step.click(
+            lambda: update_with_timer(controller.advance(1)),
+            outputs=scheduler_outputs,
+            **scheduler_event,
+        )
+        reset.click(
+            lambda: update_with_timer(controller.reset()),
+            outputs=scheduler_outputs,
+            **scheduler_event,
+        )
+        one.click(
+            lambda: update_with_timer(controller.inject(1)),
+            outputs=scheduler_outputs,
+            **scheduler_event,
+        )
+        flash.click(
+            lambda: update_with_timer(controller.inject(4)),
+            outputs=scheduler_outputs,
+            **scheduler_event,
+        )
+        speed.change(
+            lambda value: update_with_timer(controller.set_speed(float(value))),
+            inputs=speed,
+            outputs=scheduler_outputs,
+            **scheduler_event,
+        )
+        apply.click(
+            lambda value: update_with_timer(controller.set_policy(value)),
+            inputs=policy,
+            outputs=scheduler_outputs,
+            **scheduler_event,
+        )
+        timer.tick(
+            tick,
+            outputs=[arena, status, source, metrics, library],
+            trigger_mode="always_last",
+            **scheduler_event,
+        )
     return demo
 
 
