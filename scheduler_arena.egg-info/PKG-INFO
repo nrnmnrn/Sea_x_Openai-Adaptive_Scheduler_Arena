@@ -1,7 +1,0 @@
-Metadata-Version: 2.4
-Name: scheduler-arena
-Version: 0.1.0
-Summary: Interactive scheduler arena demo
-Requires-Python: <3.12,>=3.11
-Requires-Dist: gradio==6.26.0
-Requires-Dist: plotly==7.0.0
