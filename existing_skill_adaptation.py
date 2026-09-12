@@ -74,7 +74,9 @@ def _non_empty_text(value: Any, reason: str, message: str) -> str:
     return value
 
 
-def _comparison_identity(trigger: Mapping[str, Any] | None) -> tuple[str, str, str]:
+def _comparison_identity(
+    trigger: Mapping[str, Any] | None,
+) -> tuple[str, str, str, Mapping[str, Any]]:
     if not isinstance(trigger, Mapping):
         raise ExistingSkillAdaptationValidationError(
             "missing_trigger", "A TriggerResult is required before assembling a comparison"
@@ -116,7 +118,7 @@ def _comparison_identity(trigger: Mapping[str, Any] | None) -> tuple[str, str, s
         "invalid_adaptation_id",
         "TriggerResult adaptation_id must be a non-empty string",
     )
-    return run_id, window_id, adaptation_id
+    return run_id, window_id, adaptation_id, window
 
 
 def _expected_ids(expected_skill_ids: Iterable[str]) -> tuple[str, ...]:
@@ -152,6 +154,7 @@ def _validated_evaluations(
     evaluations: Iterable[Mapping[str, Any]],
     expected_skill_ids: tuple[str, ...],
     baseline: Mapping[str, Any],
+    workload_window: Mapping[str, Any],
 ) -> tuple[Mapping[str, Any], ...]:
     if isinstance(evaluations, (str, bytes, Mapping)):
         raise ExistingSkillAdaptationValidationError(
@@ -167,7 +170,6 @@ def _validated_evaluations(
     expected = set(expected_skill_ids)
     received: set[str] = set()
     copies: list[Mapping[str, Any]] = []
-    reference_evaluation_window: Mapping[str, Any] | None = None
     for evaluation in supplied:
         if not isinstance(evaluation, Mapping):
             raise ExistingSkillAdaptationValidationError(
@@ -211,12 +213,10 @@ def _validated_evaluations(
                 raise ExistingSkillAdaptationValidationError(
                     "invalid_evaluation_field", f"EvaluationResult {field} must be an object"
                 )
-        if reference_evaluation_window is None:
-            reference_evaluation_window = evaluation["evaluation_window"]
-        elif evaluation["evaluation_window"] != reference_evaluation_window:
+        if evaluation["evaluation_window"] != workload_window:
             raise ExistingSkillAdaptationValidationError(
                 "evaluation_window_mismatch",
-                "EvaluationResult evaluation_window must match every collected result",
+                "EvaluationResult evaluation_window must match TriggerResult workload_window",
             )
         if type(evaluation["gate_passed"]) is not bool:
             raise ExistingSkillAdaptationValidationError(
@@ -265,7 +265,7 @@ class ExistingSkillComparisonAssembler:
     ) -> ExistingSkillComparison:
         """Collect complete existing-Skill results without interpreting their outcomes."""
 
-        run_id, window_id, adaptation_id = _comparison_identity(trigger)
+        run_id, window_id, adaptation_id, workload_window = _comparison_identity(trigger)
         key = (run_id, window_id)
         existing = self._by_key.get(key)
         if existing is not None:
@@ -289,7 +289,9 @@ class ExistingSkillComparisonAssembler:
                 "missing_baseline", "A baseline metrics object is required"
             )
         skill_ids = _expected_ids(expected_skill_ids)
-        evaluation_copies = _validated_evaluations(evaluations, skill_ids, baseline)
+        evaluation_copies = _validated_evaluations(
+            evaluations, skill_ids, baseline, workload_window
+        )
 
         comparison = ExistingSkillComparison(
             run_id=run_id,

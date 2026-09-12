@@ -211,6 +211,20 @@ def test_evaluations_must_share_one_evaluation_window():
     assert error.value.reason == "evaluation_window_mismatch"
 
 
+def test_evaluations_with_a_shared_wrong_window_are_rejected():
+    wrong_window = {"id": "other-window", "start": 0, "end": 10}
+
+    with pytest.raises(ExistingSkillAdaptationValidationError) as error:
+        assemble(
+            evaluations=[
+                evaluation("fifo", evaluation_window=wrong_window),
+                evaluation("edf", evaluation_window=wrong_window),
+            ]
+        )
+
+    assert error.value.reason == "evaluation_window_mismatch"
+
+
 def test_input_mutation_after_assembly_does_not_change_result():
     supplied_trigger = trigger()
     supplied_baseline = baseline()
