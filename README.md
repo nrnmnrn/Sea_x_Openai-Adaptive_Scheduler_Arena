@@ -24,6 +24,8 @@
 
 GitHub parent issue 與 Ticket 僅記錄執行狀態及證據；產品需求與介面仍以上述文件為準。
 
+目前採[原型優先異步開發](docs/adr/0004-prototype-parallel-development.md)：SP-01 保留原完整開發；SP-02～04 按[三類工作表](docs/product/prototype-work-plan.md)先做可獨立部分，用[接口討論表](docs/product/interface-discussion-board.md)同步決策。可用真實開發版本持續試接；正式交付仍須 main 證據。未決產品規則不自行補值，原型接通不等於完整驗收。
+
 ## 環境、啟動與測試
 
 依[後端契約的環境與啟動章節](docs/contracts/backend-contract.md#環境與啟動契約)建立環境、啟動 UI、選擇 backend（後端執行方式）及執行測試。依賴版本以 [pyproject.toml](pyproject.toml) 為準。

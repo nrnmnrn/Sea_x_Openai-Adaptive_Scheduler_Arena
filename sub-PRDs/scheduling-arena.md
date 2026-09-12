@@ -2,6 +2,8 @@
 
 ## 基本資料
 
+> 使用者已確認 SP-01 正在由組員完整開發；本次不改其功能責任、既有 Ticket 或驗收。下列原始認領／核可欄位尚未同步，請現有負責人在 parent issue 補上實際連結與規格版本；不得將空白欄位視為已核可證據，也不要求重新認領。
+
 - 狀態：`Unclaimed`
 - 核可狀態：待人類核可；未核可前不可開始實作
 - 版本：`0.1-draft`
@@ -42,7 +44,9 @@
 | --- | --- | --- | --- | --- | --- |
 | `None` | None | 無上游子 PRD | 本子 PRD 核可後可開始 | 下游依共同 contract 整合 | SP-01 是基礎 Provider。 |
 
-本子 PRD提供[後端契約](../docs/contracts/backend-contract.md)所定義的 SchedulerBackendAdapter、Snapshot、Job、Skill、Event、metrics、segments、pause／resume seam 與 UI shell。下游 SP-02 以 **Contract** 依賴上述輸出；契約凍結後可用 deterministic adapter／fixture 平行工作。與實際 Arena 的聯合驗收另為 **Integration** 依賴，須等本子 PRD 完成。
+本子 PRD提供[後端契約](../docs/contracts/backend-contract.md)所定義的 SchedulerBackendAdapter、Snapshot、Job、Skill、Event、metrics、segments、pause／resume seam 與 UI shell。交付 ID 為 **S01-FULL**：保留原單一 branch／PR，整份完成、merge 並在 main 驗證後才供 SP-02～04 正式整合；不承諾提前切片。下游可依[原型工作分類](../docs/product/prototype-work-plan.md)先開發，取得必要同意後依 workflow 使用本組可辨識的真實開發版試接；這不是 S01-FULL、不要求提前切片或修改原安排，不以測試替身作證據。
+
+交接位置與驗證索引見 [H1、H2、H3、H7、H8](../docs/contracts/adaptation-contract.md)。其中待決的 sandbox、操作回傳、UI evidence 與恢復邊界不是對 SP-01 的新增承諾；涉及本子 PRD 實質變更，須由現有負責人確認並經人類核可。D6 所列 Hybrid 真實驗收來源缺口仍需確認，本次保留以下原驗收，不宣稱問題已解除。
 
 ## 必要行為
 

@@ -1,12 +1,24 @@
 # Adaptive Scheduler Arena 驗收矩陣
 
-本文件承接總 PRD的每項需求、負責子 PRD與驗收證據。它也是正式流程的 closeout 證據索引，不重複改寫產品需求。所有項目目前為待驗收；`build-handoff_final` 通過獨立驗收前不可宣稱已正式取代其他 handoff。
+本文件承接總 PRD 的每項需求、負責子 PRD 與驗收證據，也作正式流程的 closeout 索引，不重複改寫產品需求。所有項目仍為待驗收；比賽開發與流程修改不等於產品或文件已驗收。
 
 ## 證據規則
 
 - 每列填入結果、證據連結或命令輸出、日期與驗收者；未通過須保留限制，不能以 local 結果宣稱 team mode 通過。
 - 子 PRD closeout 必須有：完整功能驗收、相關測試、AI review、Owner 自查、另一位成員確認、正式 PR merge，以及 `main` 整合驗收。
 - 所有子 PRD完成仍不足以宣告產品完成；必須再通過本表的整合、90 秒短展示與 progression run 項目。
+
+## 原型試接與正式驗收
+
+原型工作與開發版試接依 [workflow](workflow.md)；可以記錄真實未合併版本、已跑通路徑及未覆蓋限制，但不能據此把下表正式驗收標為通過。第一個展示情境由人類另行選定，不自動縮減產品範圍或要求必然通過。接口協調使用[討論表](docs/product/interface-discussion-board.md)，不是驗收替代品。
+
+## 真實切片證據
+
+SP-01 保留整份 PR；SP-02～04 每切片依 [workflow](workflow.md) 記錄上游交付 ID、契約版本、真實輸入、commit／PR、人類授權、main 版本與驗證結果。切片通過只涵蓋對應範圍，不能把下面整列或整份子 PRD 標為完成。
+
+交接逐項核對 [H1～H8](docs/contracts/adaptation-contract.md)，未決事項核對 [D1～D9](docs/product/adaptation-decisions.md)。R07～R18 所需全敗、passed、錯誤恢復與 UI 必須來自真實能力；固定 Jobs／邊界資料保留，但替身結果不構成正式整合。R02 Hybrid gate 來源與 R11 Snapshot 不變範圍仍待 D6，不刪除原要求或擅自縮小驗收。
+
+責任調整待 D4 核准才更新下表負責子 PRD；尤其既有評估錯誤、共同 gate 與底層恢復不能因目前列在另一功能便被省略。受影響列在決策及實際驗證完成前維持待驗收。
 
 | ID | 總 PRD需求 | 負責子 PRD | 驗收證據 | 結果／日期／驗收者 |
 | --- | --- | --- | --- | --- |
@@ -36,7 +48,7 @@
 | ID | 條件 | 證據 | 結果／日期／驗收者 |
 | --- | --- | --- | --- |
 | C01 | 每個子 PRD 已依流程完成完整功能驗收、測試、AI review、Owner 自查、另一位成員確認、正式 PR merge 與 `main` 整合驗收。 | 四份子 PRD 的 closeout 連結與 `main` 驗收結果。 | 待填 |
-| C02 | `DEPENDENCIES.md` 與每份子 PRD的直接依賴一致；所有 Contract／Integration 邊完成真正整合。 | 依賴逐邊核對紀錄。 | 待填 |
+| C02 | `DEPENDENCIES.md` 與每份子 PRD 的直接交付依賴一致；所有 Contract／Integration 邊完成真正整合。 | S01-FULL／各切片的上游交付、H1～H8 契約版本、PR／main 證據逐邊核對；D1～D9 影響項均已核准並驗證。 | 待填 |
 | C03 | team mode 的所有必要測試、lint、format check 與瀏覽器驗收通過；local 證據未被混作 team 證據。 | 命令輸出與來源標示。 | 待填 |
 | C04 | 已核定的 trigger pause／去重、dispatch attribution、最小 Skill metadata、錯誤 event／手動 retry 及短／長展示行為均已寫入產品權威並完成驗收。 | 決定紀錄及 R07、R08、R12、R13、R15、R16、R17、R19 證據。 | 待填 |
 | C05 | 交接包可由獨立 implementation repository 讀取並執行，不需要 planning repository、會議紀錄、AO 草案或預先建立 Ticket。 | 獨立讀取／rehearsal 證據。 | 待填 |

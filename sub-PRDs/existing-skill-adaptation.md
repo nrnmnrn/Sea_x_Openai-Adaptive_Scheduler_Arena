@@ -3,8 +3,8 @@
 ## 基本資料
 
 - 狀態：`Unclaimed`
-- 核可狀態：待人類核可；未核可前不可開始實作
-- 版本：`0.1-draft`
+- 核可狀態：原型 A／B 開工依 workflow 與工作分類；產品／契約待決事項及整份驗收未核准，不推定完整交付
+- 版本：`0.3-draft`
 - Owner：待比賽當日認領
 - GitHub parent issue：待比賽當日認領後建立
 - 核可紀錄：待填核可者、日期與連結
@@ -36,12 +36,16 @@
 | `PRD.md`「Demo 與 Developer mode」 | 顯示 degradation、比較、選擇原因與 events；手動操作不冒充 Agent 決策。 | R09、R20；瀏覽器及來源標示證據。 |
 | `PRD.md`「90 秒短展示與 progression run」 | 提供可重複的 trigger、既有 Skill evaluation、重用及 resume 路徑。 | R19–R20；team mode 短展示與 progression 紀錄。 |
 
+## 原型開發分類
+
+依[工作分類表](../docs/product/prototype-work-plan.md)在原 Ticket 內先做 A 獨立或 B 邊做邊談的內部部分，開始前記錄範圍、接口 ID 及未驗證項，不等待整份契約凍結。C 僅停止依賴未決答案的部分。接口討論與決策紀錄集中於[共用表單](../docs/product/interface-discussion-board.md)。開發版試接可使用可辨識的真實未合併版本，條件依 [workflow](../workflow.md)；下表整合條件均指正式交付，並非開發版試接門檻。
+
 ## 介面與直接依賴
 
 | 方向（Consumer depends on Provider） | 類型 | 需要的輸出或 contract | 可開始條件 | 整合條件 | 理由 |
 | --- | --- | --- | --- | --- | --- |
-| SP-02 depends on SP-01 | Contract | SchedulerBackendAdapter、Snapshot、metrics、events、verified Skills、activation、pause／resume seam、UI 插入點 | 契約已核定；可用 deterministic fixture／adapter | SP-01 實際 Arena 提供同一 contract | 評估與展示必須使用同一 scheduling evidence。 |
-| SP-02 depends on SP-01 | Integration | 實際 Snapshot、pause／resume 與 UI shell | Contract fixture 可先行 | team mode 中以同一 Snapshot 聯合驗收 | 驗證真實 Arena 整合。 |
+| SP-02 depends on SP-01 | Contract | SchedulerBackendAdapter、Snapshot、metrics、events、verified Skills、activation、pause／resume seam、UI 插入點 | A／B 依原型分類先行；C 的受影響操作先決定，真實試接依 workflow | S01-FULL merge 並在 main 驗證，使用真實 Arena | 評估與展示必須使用同一 scheduling evidence。 |
+| SP-02 depends on SP-01 | Integration | 實際 Snapshot、pause／resume 與 UI shell | A／B 依原型分類先行；C 的受影響操作先決定，真實試接依 workflow | team mode 中以同一 Snapshot 聯合驗收 | 驗證真實 Arena 整合。 |
 
 本子 PRD 向 SP-03 提供含 run／window 唯一鍵的 `TriggerResult`、完整既有 Skill `EvaluationResult[]`、all-skills-failed 判定、active `adaptation_id` 與可追溯 adaptation context。
 
@@ -64,16 +68,32 @@
 - 有 Skill 通過時，測試證明無 Candidate、無 Planner 呼叫、無新 Skill；下次 dispatch 才採新 Policy。
 - 驗證成功重用後由同一 Snapshot 恢復，未重派 running Job，且 progression run 可再次進入新的 workload window。
 - UI／event／metrics 用同一 Snapshot 顯示 degradation、比較、選擇與啟用原因。
-- team 與 deterministic adapter／fixture 都可重跑上述結果；真實整合在 SP-01 完成後驗證。
+- 以上以可重現輸入驅動真實 team adapter 重跑；正式整合等待 S01-FULL 在 main 驗證，不以替身代替上游。
 
 ## Ticket 設計與數量閘門
 
-預估 Ticket 數：3 張。以下是賽前 vertical-slice 設計，不是已建立的 GitHub Ticket：
+預估 Ticket 數：3 張。以下為待核可的真實切片設計，不代表已建立 GitHub Ticket；交付對照見下節：
 
-1. **從 degradation 到全部既有 Skills 比較。** trigger 成立後，以相同 baseline 評估每個 verified Skill，並讓使用者看見比較結果；未成立則不執行。
+1. **從 degradation 到全部既有 Skills 比較。** trigger 成立後，以相同 baseline 評估每個 verified Skill，並讓使用者看見比較結果；未成立則不執行。此片承接既有評估逾時／錯誤／狀態不明的完整安全恢復，細部 checkpoint 待 D5，UI 由第三片呈現。
 2. **從固定選擇到恢復與下一次 dispatch。** 選出通過者，保留 running Job，產生 reuse／activation evidence，恢復 simulation clock；整條路徑不建立 Candidate。
-3. **完成 Adaptation evidence UI。** 同一 Snapshot 顯示 degradation、baseline／受測 metrics、選擇原因與 events，並驗證 team／fixture 來源標示。
+3. **完成 Adaptation evidence UI。** 同一 Snapshot 顯示 degradation、baseline／受測 metrics、選擇原因與 events，並驗證真實 team 來源標示；呈現 S02-A／B 的錯誤及安全恢復操作。
 
 ## 已核定產品行為
 
 指標惡化即暫停 simulation clock；同一 run、同一 workload window 只有一個 active `adaptation_id`。重複 trigger 沿用現有進度，不排隊、不重開；成功重用後自動恢復。
+
+## 真實切片交付與開始條件
+
+採 [workflow](../workflow.md) 的 SP-02～04 切片模式；以下 ID 是規格交付識別，不是已發佈 Ticket。每張 Ticket 自己的 branch／PR 經人類授權 merge、main 驗證後才結案；整份功能仍須全部驗收。相關契約見 [H1～H8](../docs/contracts/adaptation-contract.md)，未決內容見 [D1～D9](../docs/product/adaptation-decisions.md)。
+
+| 交付 ID | 提供的真實結果 | 正式整合所需上游 | 使用者 | 待決 blocker | 驗證方式 |
+| --- | --- | --- | --- | --- | --- |
+| S02-A | 從 degradation 到完整既有 Skill 比較（H2、H3、H4、H7） | S01-FULL；H3 共用評估 Provider 待 D4 | SP-03 消費 H4；SP-02 後續切片 | D1～D9 | 真實 trigger、相同 baseline、完整比較／全敗與錯誤證據，包含安全停止與評估逾時／錯誤回應／狀態不明後的手動 retry／resync／reset：安全 retry 沿用 ID、不重做成功副作用，狀態不明只 resync／reset；依 D5 核准 checkpoint 驗證，未解決不可交付。 |
+| S02-B | 固定選擇、重用／啟用及恢復（H2、H7） | S01-FULL、S02-A | UI 與完整 SP-02 驗收 | D1～D5、D7、D8 | 目前 Policy 無新增 activation；其他通過者固定排序；成功恢復、不重派 running Job；失敗保持暫停，依 H7／D5 驗證本片控制操作的安全恢復。 |
+| S02-C | 完整 Adaptation evidence UI（H8） | S01-FULL、S02-A、S02-B | 使用者與完整功能驗收 | D4～D6、D8、D9 | 同一已接受版本呈現比較、選擇與條件式 event；真實來源可追溯；呈現 S02-A／B 錯誤、可用恢復操作及狀態不明限制，不由 UI 自行判斷安全。 |
+
+- 原型開工依上述 A／B／C 分類；表列 D 項阻擋的是依賴答案的部分及正式交付，不是整組停工。未定語意／責任不自行補值；未接真實上游不宣稱相應結果通過。
+- 正式整合時，表列上游均需 merge 並在 main 驗證；S01-FULL 指 SP-01 整份完成，不要求其提前拆分。
+- S02-A 承接既有評估的完整安全恢復；S02-B 承接自身控制錯誤恢復；S02-C 呈現兩者。沿用三張 Ticket，沒有未列出的「後續恢復切片」，也不等待 SP-04。各片須具安全停止及副作用保護；恢復細節由 D5／H7 核准後實作驗證。
+- 本次不調整原有產品責任或降低原驗收。D4 責任配置、D6 Snapshot 不變範圍等尚未解決時，停止相應交付，不自行推定 SP-01 或其他 Provider 已承諾。
+- 完整子 PRD 結案仍需所有直接 Provider 的完整所需成果與全流程驗收；切片提早交付不代表略過其他路徑。

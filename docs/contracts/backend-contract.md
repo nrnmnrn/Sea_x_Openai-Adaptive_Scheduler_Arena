@@ -2,6 +2,14 @@
 
 本契約定義 implementation repository 中 UI、scheduler、sandbox 與 Agent adapter 的共同邊界。若與 [總 PRD](../../PRD.md) 衝突，以總 PRD 為準；若子 PRD 對自己的直接依賴提出更嚴格要求，以子 PRD 為準。本文件不決定 LLM 供應商、部署方式或實作類別。
 
+## 契約修訂與交接狀態
+
+本次保留下列既有公開型別、方法與 SP-01 實作邊界。跨功能交付、提供／使用者、驗證方式與凍結檢查集中於 [adaptation-contract](adaptation-contract.md)；未決產品／schema／責任問題列於 [D1～D9](../product/adaptation-decisions.md)。BackendAdapter 方法集合不等於全部由 SP-01 實作，精確歸屬待 D4 核准。
+
+「修改操作回傳 Snapshot」與逐方法回傳、playing 所在位置的矛盾待 D8；baseline、null gate、完整交接 payload 等未定處不能由實作者自行補值。這些受影響介面尚不能宣稱凍結。修改 SP-01 的既有責任、介面或驗收須先取得其負責人確認與人類核可。
+
+共同 deterministic fixtures 是固定測試資料，繼續保留；不等於以替身取代未完成 Provider。正式整合依 workflow 使用真實上游。案例 A 的 Hybrid 真實通過來源依 D6 確認，不憑本次流程修改移除其 gate 前提。
+
 ## 環境與啟動契約
 
 - 使用 Python 3.11 與 uv；支援範圍為 `>=3.11,<3.12`。`pyproject.toml` 固定包含 `gradio==6.26.0`、`plotly==7.0.0`，以及 dev dependency group 的 `pytest==9.1.1`、`ruff==0.16.6`。
