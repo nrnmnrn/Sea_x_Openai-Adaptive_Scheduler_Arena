@@ -198,3 +198,62 @@ def test_hidden_prompt_failure_cannot_fall_back_to_echoed_input(monkeypatch) -> 
     monkeypatch.setattr(experiment.getpass, "getpass", warn_and_fail)
     with pytest.raises(ExperimentError, match="could not read hidden"):
         _read_prompt_key()
+
+
+def test_prepare_only_writes_request_without_reading_a_key_or_generating(
+    tmp_path: Path, monkeypatch
+) -> None:
+    class RejectEnvironment:
+        def get(self, key: str, default: str | None = None) -> str:
+            raise AssertionError("prepare-only must not read the environment")
+
+    class RejectOS:
+        environ = RejectEnvironment()
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("prepare-only must not read a key or generate")
+
+    monkeypatch.setattr(experiment, "os", RejectOS())
+    monkeypatch.setattr(experiment, "read_env_key", forbidden)
+    monkeypatch.setattr(experiment, "_read_prompt_key", forbidden)
+    monkeypatch.setattr(experiment, "generate", forbidden)
+
+    assert experiment.main(["--prepare-only", "--output-dir", str(tmp_path)]) == 0
+
+    artifacts = list(tmp_path.glob("candidate-*.json"))
+    assert len(artifacts) == 1
+    assert json.loads(artifacts[0].read_text()) == {
+        "experiment_only": True,
+        "request": build_request(),
+    }
+
+
+def test_main_returns_one_and_logs_generation_failure(tmp_path: Path, monkeypatch, caplog) -> None:
+    def fail_generation(api_key: str) -> dict:
+        assert api_key == "dummy-key"
+        raise ExperimentError("dummy generation failure")
+
+    monkeypatch.setattr(experiment, "read_env_key", lambda path: "dummy-key")
+    monkeypatch.setattr(experiment, "generate", fail_generation)
+
+    assert experiment.main(["--env-file", str(tmp_path / "dummy.env")]) == 1
+    assert "Candidate generation experiment failed: dummy generation failure" in caplog.text
+
+
+def test_main_returns_one_and_logs_artifact_write_failure(
+    tmp_path: Path, monkeypatch, caplog
+) -> None:
+    monkeypatch.setattr(experiment, "read_env_key", lambda path: "dummy-key")
+    monkeypatch.setattr(
+        experiment,
+        "generate",
+        lambda api_key: {"syntax_check_passed": True},
+    )
+
+    def fail_write(output_dir: Path, artifact: dict) -> Path:
+        raise OSError("dummy write failure")
+
+    monkeypatch.setattr(experiment, "write_artifact", fail_write)
+
+    assert experiment.main(["--env-file", str(tmp_path / "dummy.env")]) == 1
+    assert "Candidate generation experiment could not write its artifact" in caplog.text
