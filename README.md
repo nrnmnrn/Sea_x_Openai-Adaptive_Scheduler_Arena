@@ -60,3 +60,6 @@ GitHub parent issue 與 Ticket 僅記錄執行狀態及證據；產品需求與�
 ## 環境、啟動與測試
 
 依[後端契約的環境與啟動章節](docs/contracts/backend-contract.md#環境與啟動契約)建立環境、啟動 UI、選擇 backend（後端執行方式）及執行測試。依賴版本以 [pyproject.toml](pyproject.toml) 為準。
+
+# 連結
+https://github.com/nrnmnrn/Sea_x_Openai-Adaptive_Scheduler_Arena/tree/main
